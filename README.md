@@ -30,53 +30,64 @@ The Streamlit UI is a demo layer over the same Planner / Judge / Storyteller pip
 
 | Engineering problem | Design decision |
 |---|---|
-| User intent drifts across generations | Durable `UserPreferences` + `explicit_asks` supplied to every Planner and Judge call |
+| User intent drifts across generations | Durable `UserPreferences` + behavioral/thematic requests (`explicit_asks`) supplied to every Planner and Judge call |
 | Exact requirements are unreliable when judged semantically alone | Hybrid Judge: deterministic checks + LLM-scored dimensions |
-| Agent loops can run indefinitely | Bounded revision harness with best-effort fallback |
-| Corpus grounding should inspire, not copy source prose | Metadata-only `InspirationCard`s — structure and summary, never full text |
+| Agent loops can run indefinitely | Bounded revision loop (hard retry limit) with best-effort fallback after the retry limit |
+| Corpus grounding should inspire, not copy source prose | Compact metadata summaries (`InspirationCard`s) — structure only, never full source prose |
 | More decomposition might improve a weaker model | Implemented and measured whole-story vs beat-by-beat strategies |
-| Recurring `calm_ending` failures on high-energy arcs | Conditional `revise_ending` — closing section only, not a new agent |
-| Safety-driven adaptation can look like model failure | Transparent constraint adaptation via `child_notice` |
+| Recurring calm-ending failures on high-energy arcs | Conditional `revise_ending` — closing section only, not a new agent |
+| Safety-driven adaptation can look like model failure | Transparent constraint adaptation with a child-facing explanation (`child_notice`) |
 
 ---
 
 ## Architecture
 
-Three agents, one `SessionContext`, two nested feedback loops. Full design rationale: [`REPORT.md`](REPORT.md).
+Three agents, one shared session-state object (`SessionContext`), two nested feedback loops. Full design rationale: [`REPORT.md`](REPORT.md).
 
 ```mermaid
 flowchart TD
     Child(["Child"]) --> Extract["Preference extraction"]
-    Extract --> Prefs["UserPreferences / explicit_asks"]
-    Prefs --> Planner["Planner"]
-    Index["corpus_index.json"] --> Search["Corpus search"]
-    Search -->|"InspirationCards"| Planner
+    Extract --> State["SessionContext / UserPreferences"]
 
-    Planner -->|"StoryPlan"| JudgeP["Plan Judge"]
-    JudgeP -->|"fail"| Planner
-    JudgeP -->|"pass"| Child
-    Child -->|"approve / revise"| Planner
+    subgraph L1["Loop 1 — Plan alignment"]
+        State --> Planner["Planner"]
+        Index["corpus_index.json"] --> Search["Corpus search"]
+        Search -->|"InspirationCards"| Planner
+        Planner --> JPlan["Judge — plan mode"]
+        State --> JPlan
+        JPlan -->|fail| Planner
+        JPlan -->|pass| Review["Child reviews concept"]
+        Review -->|revise| Planner
+    end
 
-    Child -->|"approved plan"| Teller["Storyteller"]
-    Teller -->|"draft"| JudgeS["Story Judge"]
-    JudgeS -->|"fail (primarily calm_ending)"| Ending["revise_ending"]
-    Ending --> JudgeS
-    JudgeS -->|"other fail"| Teller
-    JudgeS -->|"pass"| Child
+    Review -->|approve| Plan["Approved StoryPlan"]
+
+    subgraph L2["Loop 2 — Story generation"]
+        Plan --> Teller["Storyteller"]
+        State --> Teller
+        Teller --> JStory["Judge — story mode"]
+        State --> JStory
+        JStory -->|pass| Out(["Child receives story"])
+        JStory -->|broader failure| Teller
+        JStory -->|calm-ending failure| RE["revise_ending"]
+        RE --> JStory
+    end
+
+    JPlan -.->|same Judge, two modes| JStory
 ```
 
-**Loop 1** is cheap: iterate on a short concept, not full prose. **Loop 2** runs only after approval.
+**Loop 1** aligns the story concept before spending full-generation calls. **Loop 2** generates and evaluates the full story only after plan approval.
 
 ---
 
 ## How it works
 
 1. **Child gives an idea** — age band and free-text request.
-2. **Preferences and explicit asks are extracted** — entities → `must_include`; behavioral/thematic requests → `explicit_asks`.
-3. **Planner retrieves inspiration and drafts a `StoryPlan`** — corpus search returns `InspirationCard`s; Planner selects plot shape and arc beats.
-4. **Plan Judge evaluates** — hybrid checks; internal revision loop before the child sees anything.
+2. **Preferences are extracted** — entities → required entities (`must_include`); behavioral/thematic requests → `explicit_asks`.
+3. **Planner retrieves inspiration and drafts a structured story plan (`StoryPlan`)** — corpus search returns compact metadata summaries (`InspirationCard`s); Planner selects a plot structure (`plot_shape`) and its story-arc steps (beats).
+4. **Judge — plan mode evaluates** — hybrid checks in a bounded revision loop before the child sees anything.
 5. **Child approves or revises the concept** — feedback normalized and accumulated into `UserPreferences`.
-6. **Storyteller writes; Story Judge validates** — full story generated and checked; conditional ending repair if `calm_ending` is the primary failure.
+6. **Storyteller writes; Judge — story mode validates** — full story generated and checked; conditional ending repair if the calm bedtime ending is the primary failure.
 
 ---
 
@@ -86,12 +97,12 @@ This is not a single chained prompt. Components exchange explicit structured sta
 
 | Object | Role |
 |---|---|
-| `SessionContext` | Shared session state across both loops |
+| `SessionContext` | Shared structured session state across both loops |
 | `UserPreferences` | Accumulated child intent — entities, tone, themes |
-| `must_include` | Concrete required entities (deterministically checked) |
+| `must_include` | Concrete required entities explicitly requested by the child (deterministically checked) |
 | `explicit_asks` | Behavioral/thematic requests persisted separately from entities |
-| `StoryPlan` | Explicit contract between Loop 1 (plan) and Loop 2 (story) |
-| `JudgeResult` | Structured evaluation with per-dimension scores and reasons |
+| `StoryPlan` | Structured, approved plan passed from Loop 1 to Loop 2 |
+| `JudgeResult` | Structured Judge output with per-dimension scores and reasons |
 
 Loop 1 aligns *what* the child wants before Loop 2 spends full-generation calls on *how* to tell it.
 
@@ -105,8 +116,8 @@ Loop 1 aligns *what* the child wants before Loop 2 spends full-generation calls 
 |---|---|
 | Required entities present (`must_include`, word-boundary phrase match) | Engagement, coherence, warmth |
 | Word-count band | Age appropriateness |
-| Valid `plot_shape` / structural validity | Preference adherence |
-| No leaked meta-text | `calm_ending` (bedtime landing) |
+| Valid plot structure (`plot_shape`) | Preference adherence |
+| No leaked internal instructions / agent commentary | Calm bedtime ending (`calm_ending`) |
 
 Pass/fail is decided in code from combined signals — the model scores and explains, but does not unilaterally decide.
 
@@ -114,7 +125,7 @@ Pass/fail is decided in code from combined signals — the model scores and expl
 
 ## Engineering tradeoffs
 
-**Whole-story** generates the complete draft in one generation call per attempt. **Beat-by-beat** generates each arc beat sequentially, passing the story-so-far into the next call.
+**Whole-story** generates the complete draft in one generation call per attempt. **Beat-by-beat** generates each story-arc step sequentially, passing the story-so-far into the next call.
 
 Both strategies were implemented and compared on the same nine hand-built plans, two repeats each (**36 real API runs**). Details: [`artifacts/ab_experiment/report.md`](artifacts/ab_experiment/report.md).
 
@@ -134,15 +145,15 @@ Beat-by-beat achieved a small pass-rate advantage but required **~3.1×** more L
 
 | Stage | Finding |
 |---|---|
-| **Observed** | `calm_ending` repeatedly failed on high-energy / silly-cumulative arcs |
+| **Observed** | Calm bedtime ending repeatedly failed on high-energy / silly-cumulative arcs |
 | **Hypothesis tested** | Finer beat-by-beat generation might fix landing problems |
 | **Evidence** | Both strategies failed the same hard plan (4/4 on plan 06) — strategy-independent |
-| **Diagnosis** | Semantic ending problem, not context-length or granularity problem |
-| **Response** | `revise_ending` — a Storyteller *operation*, not a new agent — rewrites only the closing ~25% when `calm_ending` is the primary failure |
+| **Diagnosis** | Semantic ending problem, not a context-length or story-splitting problem |
+| **Response** | `revise_ending` — a Storyteller *operation*, not a new agent — rewrites only the closing ~25% when calm ending is the primary failure |
 
-Directional Loop 2 evidence on the hard case: **2/3 pass** with ending repair vs **1/3** with full regen only; lower mean attempts and latency. Details: [`artifacts/ending_repair/report.md`](artifacts/ending_repair/report.md).
+Directional Loop 2 evidence on the hard case: **2/3 pass** with ending repair vs **1/3** with full regeneration only; lower mean attempts and latency. Details: [`artifacts/ending_repair/report.md`](artifacts/ending_repair/report.md).
 
-Broader story failures still trigger a full rewrite. Safety-driven adaptations that materially change explicit child intent surface as `child_notice`; ordinary revisions do not.
+Broader story failures still trigger a full rewrite. Safety-driven adaptations that materially change explicit child intent surface as a child-facing explanation (`child_notice`); ordinary revisions do not.
 
 ---
 
@@ -153,7 +164,7 @@ Broader story failures still trigger a full rewrite. Safety-driven adaptations t
 - Bounded internal Planner↔Judge and Storyteller↔Judge loops
 - Explicit shared session state — preferences do not rely on conversational memory
 - Deterministic enforcement where semantics are unnecessary
-- Best-effort fallback after bounded retries
+- Best-effort fallback after the retry limit instead of unbounded regeneration
 - Child-facing errors instead of traces, scores, or agent names
 - **49 automated test groups passing** (no API key required)
 - Real API validation via `smoke_e2e.py` (five scripted end-to-end scenarios) and targeted demo scripts
