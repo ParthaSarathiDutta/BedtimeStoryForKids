@@ -1,8 +1,8 @@
 # 🌙 Bedtime Story Maker
 
-An evaluated agentic AI system for personalized bedtime-story generation.
+An evaluated agentic AI system for personalized generation, built around explicit state, bounded agent loops, retrieval-grounded planning, and hybrid LLM/deterministic evaluation.
 
-Planner–Judge–Storyteller orchestration, persistent user intent, corpus-grounded planning, hybrid deterministic/LLM evaluation, bounded revision loops, and targeted failure repair.
+Planner–Judge–Storyteller orchestration and targeted failure repair.
 
 **🚀 Live Demo — deploying soon** · **[🏗 Architecture](#architecture)** · **[🧪 Evaluation](#evaluation)** · **[⚙️ Run locally](#try-it-locally)**
 
@@ -124,7 +124,7 @@ Both strategies were implemented and compared on the same nine hand-built plans,
 | Average words | **386** | 587 |
 | Repetition density | **0.0097** | 0.0199 |
 
-Beat-by-beat achieved a small pass-rate advantage but required **~3.1×** more LLM calls, **~1.6×** latency, greater length, and roughly **2×** repetition. Whole-story was retained as the production default — evidence-driven simplification, not premature optimization.
+Beat-by-beat achieved a small pass-rate advantage but required **~3.1×** more LLM calls, **~1.6×** latency, greater length, and roughly **2×** repetition. Whole-story was retained as the system default — evidence-driven simplification, not premature optimization.
 
 ---
 
@@ -146,7 +146,8 @@ Broader story failures still trigger a full rewrite. Safety-driven adaptations t
 
 ## Reliability by design
 
-- Structured JSON outputs with defensive parsing and retries (`gpt-3.5-turbo`-safe)
+- Structured outputs with defensive JSON parsing, validation, and retry handling
+- Custom bounded Agent↔Judge harness rather than framework-managed orchestration
 - Bounded internal Planner↔Judge and Storyteller↔Judge loops
 - Explicit shared session state — preferences do not rely on conversational memory
 - Deterministic enforcement where semantics are unnecessary
