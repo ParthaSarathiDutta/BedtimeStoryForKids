@@ -51,8 +51,11 @@ each one is a different question:
 
 - engagement: would a child this age be excited to hear this story?
 - clarity: is the concept clear, not confusing or self-contradictory?
-- warmth: gentle enough for BEDTIME, not overstimulating right before sleep?
-- age_appropriateness: suitable content and vocabulary level for ages 5-10?
+- warmth: gentle enough for BEDTIME. Age-appropriate rivalry, contests, or
+  comic showdowns can still score 3 or higher if nobody is badly hurt and the
+  story can settle calmly -- do NOT require pure friendship/cooperation.
+- age_appropriateness: suitable for ages 5-10. Death, killing, or severe harm
+  is a clear failure. Playful conflict or rivalry is acceptable.
 
 Reply with ONLY a JSON object:
 {{

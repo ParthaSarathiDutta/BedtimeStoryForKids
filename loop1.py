@@ -66,6 +66,7 @@ def run(
         session.log(
             "planner_draft", concept=plan.concept, protagonist=plan.protagonist,
             setting=plan.setting, plot_shape=plan.plot_shape, open_question=plan.open_question,
+            child_notice=plan.child_notice,
         )
         return plan
 

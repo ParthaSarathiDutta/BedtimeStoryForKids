@@ -70,6 +70,9 @@ def present_plan(plan: StoryPlan) -> str:
     print()
     print(f"  {plan.concept}")
     print()
+    if plan.child_notice:
+        print(f"  {plan.child_notice}")
+        print()
     if plan.open_question:
         print(f"  {plan.open_question}")
         print()

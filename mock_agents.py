@@ -32,6 +32,10 @@ def make_mock_plan(fail_first_n_internal: int = 0):
     """Returns a mock planner function. Concept always mentions every
     `must_include` phrase found in the prompt, so the deterministic Judge
     check has something real to verify rather than trivially always passing.
+
+    Also exercises transparent safe adaptation: if revision notes ask for
+    death/severe harm, keep rivalry but omit the harm and set child_notice;
+    ordinary revision requests leave child_notice null.
     """
     calls = {"n": 0}
 
@@ -40,15 +44,56 @@ def make_mock_plan(fail_first_n_internal: int = 0):
         must_include_line = re.search(r"MUST appear in your concept:\n(.*)", prompt)
         elements = must_include_line.group(1).strip() if must_include_line else ""
         elements = "" if elements == "(none stated)" else elements
-        concept = "A brave little fox sets off on a playful adventure."
+
+        prior_protag = re.search(r"Previous protagonist: (.*)", prompt)
+        prior_concept = re.search(r'The previous concept was:\n"(.*)"', prompt)
+        notes_match = re.search(r"Revision guidance to address: (.*)", prompt)
+        notes = (notes_match.group(1) if notes_match else "").lower()
+
+        unsafe = any(w in notes for w in ("die", "death", "kill", "stab", "murder"))
+        wants_fight = any(w in notes for w in ("fight", "battle", "rival"))
+
+        if prior_protag and "REVISION" in prompt:
+            protagonist = prior_protag.group(1).strip()
+        else:
+            protagonist = "Ember the fox"
+
+        if unsafe and wants_fight:
+            concept = (
+                f"Join {protagonist} in a big playful showdown where they compete "
+                "and one loses with a comic tumble — nobody gets badly hurt."
+            )
+            notice = (
+                "I'm changing that part a little to keep the story safe for bedtime. "
+                "They can still have a big showdown, but nobody will be badly hurt."
+            )
+        elif unsafe:
+            concept = (
+                f"Join {protagonist} on a brave adventure with a safe challenge "
+                "they overcome together."
+            )
+            notice = (
+                "I'm changing that part a little to keep the story safe for bedtime. "
+                "There will still be excitement, but nobody gets badly hurt."
+            )
+        else:
+            concept = "A brave little fox sets off on a playful adventure."
+            notice = None
+            if prior_concept and "REVISION" in prompt and "sillier" in notes:
+                concept = "A silly little fox slips on banana peels on a playful adventure."
+            if prior_concept and "REVISION" in prompt and "parrot" in notes:
+                concept = "A brave little fox and a talking parrot set off on a playful adventure."
+
         if elements:
             concept += f" Along the way there is {elements}."
+
         return {
             "concept": concept,
-            "protagonist": "Ember the fox",
+            "protagonist": protagonist,
             "setting": "a starlit meadow",
             "plot_shape": "quest/rescue",
             "open_question": "Should Ember's friend be a rabbit or an owl?",
+            "child_notice": notice,
         }
 
     mock_plan.calls = calls

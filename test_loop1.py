@@ -232,6 +232,109 @@ def test_feedback_normalizer_distrusts_contradictory_approval() -> None:
     check("intent demoted from approve", response.intent, "other")
 
 
+def test_transparent_safety_adaptation_preserves_safe_conflict() -> None:
+    """Mixed feedback: keep fight/rivalry, refuse death, emit child_notice."""
+    llm = LLMClient(mock=True)
+    prefs = UserPreferences(
+        initial_request="dinosaur and blue whale fighting",
+        must_include=["dinosaur", "blue whale"],
+    )
+    prior = StoryPlan(
+        concept="Dino and Blue are about to have a big jungle showdown!",
+        protagonist="Dino the dinosaur and Blue the blue whale",
+        setting="a jungle",
+        plot_shape="overcome challenge",
+        arc_beats=["Hook", "Challenge", "Warm ending"],
+        metadata={"reading_band": "7-8"},
+        open_question=None,
+    )
+    notes = (
+        'The child reacted: "they should fight with each other. one should die." '
+        "(interpreted as other). Revise the plan to address this while keeping "
+        "everything they already liked."
+    )
+    plan = planner.create_plan(
+        prefs, [], llm, prior_plan=prior, revision_notes=notes,
+        mock_fn=mock_agents.make_mock_plan(),
+    )
+    text = (plan.concept + " " + plan.protagonist).lower()
+    check_true("dinosaur preserved", "dino" in text or "dinosaur" in text)
+    check_true("blue whale preserved", "blue" in text or "whale" in text)
+    check_true("safe conflict preserved", any(
+        w in text for w in ("showdown", "compete", "fight", "rival", "clash", "lose")
+    ))
+    check_true("death not honored", "die" not in text and "death" not in text and "kill" not in text)
+    check_true("child_notice present", bool(plan.child_notice))
+    check_true(
+        "notice is child-facing (no policy jargon)",
+        plan.child_notice is not None
+        and "policy" not in plan.child_notice.lower()
+        and "moderation" not in plan.child_notice.lower(),
+    )
+    check(
+        "protagonist names preserved",
+        plan.protagonist,
+        "Dino the dinosaur and Blue the blue whale",
+    )
+
+
+def test_ordinary_feedback_produces_no_safety_notice() -> None:
+    llm = LLMClient(mock=True)
+    prefs = UserPreferences(initial_request="a fox story", must_include=["a fox"])
+    prior = StoryPlan(
+        concept="A fox goes on an adventure.",
+        protagonist="Ember the fox",
+        setting="a meadow",
+        plot_shape="quest/rescue",
+        arc_beats=["Hook", "Resolution"],
+        metadata={},
+        open_question=None,
+    )
+    for notes in (
+        'The child reacted: "add a talking parrot" (interpreted as add_element).',
+        'The child reacted: "make it sillier" (interpreted as more_fun).',
+        'The child reacted: "no dragon, make it a dinosaur instead" (interpreted as add_element).',
+    ):
+        plan = planner.create_plan(
+            prefs, [], llm, prior_plan=prior, revision_notes=notes,
+            mock_fn=mock_agents.make_mock_plan(),
+        )
+        check(f"no notice for ordinary feedback: {notes[:40]}...", plan.child_notice, None)
+
+
+def test_unsafe_harm_feedback_adapts_with_notice() -> None:
+    """Dangerous ask (e.g. stab) is adapted; child_notice explains without jargon."""
+    llm = LLMClient(mock=True)
+    prefs = UserPreferences(initial_request="a monster story", must_include=["a monster"])
+    prior = StoryPlan(
+        concept="A silly monster plays hide-and-seek.",
+        protagonist="Mo the monster",
+        setting="a cave",
+        plot_shape="overcome challenge",
+        arc_beats=["Hook", "Challenge", "Warm ending"],
+        metadata={},
+        open_question=None,
+    )
+    notes = (
+        'The child reacted: "make the monster stab him" (interpreted as other). '
+        "Revise the plan to address this while keeping everything they already liked."
+    )
+    plan = planner.create_plan(
+        prefs, [], llm, prior_plan=prior, revision_notes=notes,
+        mock_fn=mock_agents.make_mock_plan(),
+    )
+    text = plan.concept.lower()
+    check_true("stab not honored", "stab" not in text)
+    check_true("child_notice present", bool(plan.child_notice))
+    check_true(
+        "notice uses bedtime-safe wording",
+        plan.child_notice is not None
+        and "bedtime" in plan.child_notice.lower()
+        and "policy" not in plan.child_notice.lower(),
+    )
+    check("protagonist preserved", plan.protagonist, "Mo the monster")
+
+
 def test_preferences_replace_element_removes_and_adds() -> None:
     """"No dragon, make it a dinosaur" must drop the dragon, not just add the dinosaur."""
     prefs = UserPreferences(initial_request="x", must_include=["a dragon"])

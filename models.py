@@ -89,6 +89,11 @@ class StoryPlan:
     `arc_beats` is guidance carried forward for the Storyteller (REPORT.md
     sec 3): the Planner selects the profile via `plot_shape`; the Storyteller
     decides how literally to follow it.
+
+    `child_notice` is an optional 1-2 sentence message when the Planner had to
+    adapt an explicit child request for bedtime safety (transparent safe
+    adaptation). Null for ordinary revisions. Shown to the child; never
+    contains policy/moderation jargon.
     """
     concept: str                    # 1-3 sentence pitch, shown to the child
     protagonist: str
@@ -98,6 +103,7 @@ class StoryPlan:
     metadata: dict[str, Any]        # resolved search_metadata-shaped preferences
     open_question: str | None       # next question for the child, or None
     inspiration_ids: list[str] = field(default_factory=list)  # traceability only
+    child_notice: str | None = None
 
     def revise(self, **changes: Any) -> "StoryPlan":
         """Plans are immutable so the trace log can hold every draft without aliasing."""
