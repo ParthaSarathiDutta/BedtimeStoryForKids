@@ -185,8 +185,7 @@ def _friendly_error(exc: BaseException) -> str:
         )
     if isinstance(exc, SystemExit) or "OPENAI_API_KEY" in str(exc):
         return (
-            "OPENAI_API_KEY is not set. Copy `.env.example` to `.env`, "
-            "add your OpenAI key, and restart: `streamlit run app.py`."
+            "This app needs an OpenAI API key before it can create stories."
         )
     return "Something unexpected went wrong. Please try starting a new story."
 
@@ -194,7 +193,7 @@ def _friendly_error(exc: BaseException) -> str:
 def _load_resources() -> tuple[LLMClient, list]:
     llm_module.load_env()
     if not os.getenv("OPENAI_API_KEY"):
-        raise SystemExit("OPENAI_API_KEY is not set")
+        raise RuntimeError("OPENAI_API_KEY is not set")
     if not INDEX_PATH.exists():
         raise FileNotFoundError("corpus_index.json is missing")
     import json
@@ -380,10 +379,10 @@ def main() -> None:
         except Exception as exc:
             st.warning(_friendly_error(exc))
             st.info(
-                "Set your key in a local `.env` file:\n\n"
-                "```\nOPENAI_API_KEY=sk-...\n```\n\n"
-                "Then run `streamlit run app.py` again. "
-                "The CLI path is still `python main.py`."
+                "Add your key in **Streamlit Community Cloud** under "
+                "**Manage app → Settings → Secrets**:\n\n"
+                "```toml\nOPENAI_API_KEY = \"sk-...\"\n```\n\n"
+                "Then reboot the app. For local runs, use a `.env` file instead."
             )
             return
 
