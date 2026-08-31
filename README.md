@@ -33,7 +33,7 @@ The Streamlit UI is a demo layer over the same Planner / Judge / Storyteller pip
 | User intent drifts across generations | Durable `UserPreferences` + behavioral/thematic requests (`explicit_asks`) supplied to every Planner and Judge call |
 | Exact requirements are unreliable when judged semantically alone | Hybrid Judge: deterministic checks + LLM-scored dimensions |
 | Agent loops can run indefinitely | Bounded revision loop (hard retry limit) with best-effort fallback after the retry limit |
-| Corpus grounding should inspire, not copy source prose | Compact metadata summaries (`InspirationCard`s) — structure only, never full source prose |
+| Corpus grounding should inspire, not copy source prose | Compact retrieved metadata summary (`InspirationCard`s) — structure only, never full source prose |
 | More decomposition might improve a weaker model | Implemented and measured whole-story vs beat-by-beat strategies |
 | Recurring calm-ending failures on high-energy arcs | Conditional `revise_ending` — closing section only, not a new agent |
 | Safety-driven adaptation can look like model failure | Transparent constraint adaptation with a child-facing explanation (`child_notice`) |
@@ -51,30 +51,28 @@ flowchart TD
 
     subgraph L1["Loop 1 — Plan alignment"]
         State --> Planner["Planner"]
+        State --> JPlan["Judge — plan mode"]
         Index["corpus_index.json"] --> Search["Corpus search"]
         Search -->|"InspirationCards"| Planner
-        Planner --> JPlan["Judge — plan mode"]
-        State --> JPlan
+        Planner --> JPlan
         JPlan -->|fail| Planner
         JPlan -->|pass| Review["Child reviews concept"]
         Review -->|revise| Planner
+        Review -->|approve| Plan["Approved StoryPlan"]
     end
-
-    Review -->|approve| Plan["Approved StoryPlan"]
 
     subgraph L2["Loop 2 — Story generation"]
         Plan --> Teller["Storyteller"]
-        State --> Teller
-        Teller --> JStory["Judge — story mode"]
-        State --> JStory
+        State --> JStory["Judge — story mode"]
+        Teller --> JStory
         JStory -->|pass| Out(["Child receives story"])
         JStory -->|broader failure| Teller
         JStory -->|calm-ending failure| RE["revise_ending"]
         RE --> JStory
     end
-
-    JPlan -.->|same Judge, two modes| JStory
 ```
+
+Plan mode and story mode use the same Judge implementation with different evaluation rubrics.
 
 **Loop 1** aligns the story concept before spending full-generation calls. **Loop 2** generates and evaluates the full story only after plan approval.
 
@@ -84,7 +82,7 @@ flowchart TD
 
 1. **Child gives an idea** — age band and free-text request.
 2. **Preferences are extracted** — entities → required entities (`must_include`); behavioral/thematic requests → `explicit_asks`.
-3. **Planner retrieves inspiration and drafts a structured story plan (`StoryPlan`)** — corpus search returns compact metadata summaries (`InspirationCard`s); Planner selects a plot structure (`plot_shape`) and its story-arc steps (beats).
+3. **Planner retrieves inspiration and drafts a structured story plan (`StoryPlan`)** — corpus search returns InspirationCards; Planner selects a high-level plot structure (`plot_shape`) and its story-arc steps (beats).
 4. **Judge — plan mode evaluates** — hybrid checks in a bounded revision loop before the child sees anything.
 5. **Child approves or revises the concept** — feedback normalized and accumulated into `UserPreferences`.
 6. **Storyteller writes; Judge — story mode validates** — full story generated and checked; conditional ending repair if the calm bedtime ending is the primary failure.
@@ -116,7 +114,7 @@ Loop 1 aligns *what* the child wants before Loop 2 spends full-generation calls 
 |---|---|
 | Required entities present (`must_include`, word-boundary phrase match) | Engagement, coherence, warmth |
 | Word-count band | Age appropriateness |
-| Valid plot structure (`plot_shape`) | Preference adherence |
+| Valid high-level plot structure (`plot_shape`) | Preference adherence |
 | No leaked internal instructions / agent commentary | Calm bedtime ending (`calm_ending`) |
 
 Pass/fail is decided in code from combined signals — the model scores and explains, but does not unilaterally decide.
