@@ -15,22 +15,12 @@ Planner–Judge–Storyteller orchestration, persistent user intent, corpus-grou
 ## Product preview
 
 <table>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="assets/Initial.png" alt="Initial story input" width="100%" />
-      <p><em>Start with the child's age and story idea.</em></p>
-    </td>
-    <td width="50%" valign="top">
-      <img src="assets/makingchanges.png" alt="Review and request changes" width="100%" />
-      <p><em>The child can review the proposed story concept and request changes before generation.</em></p>
-    </td>
-  </tr>
+<tr>
+<td align="center" valign="top"><img src="assets/Initial.png" alt="Initial story input" width="230" /><br /><sub><em>Start with the child's age and story idea.</em></sub></td>
+<td align="center" valign="top"><img src="assets/makingchanges.png" alt="Review and request changes" width="230" /><br /><sub><em>The child can review the proposed story concept and request changes before generation.</em></sub></td>
+<td align="center" valign="top"><img src="assets/final.png" alt="Final bedtime story" width="230" /><br /><sub><em>The approved plan is turned into the final bedtime story after Story Judge evaluation and revision.</em></sub></td>
+</tr>
 </table>
-
-<p align="center">
-  <img src="assets/final.png" alt="Final bedtime story" width="85%" />
-</p>
-<p align="center"><em>The approved plan is turned into the final bedtime story after Story Judge evaluation and revision.</em></p>
 
 The Streamlit UI is a demo layer over the same Planner / Judge / Storyteller pipeline as the CLI. After deployment, the Live Demo link above will point to the hosted URL.
 
