@@ -10,6 +10,7 @@ The CLI (`python main.py`) remains the default entry point.
 
 from __future__ import annotations
 
+import base64
 import os
 from pathlib import Path
 
@@ -27,6 +28,145 @@ from llm import LLMClient, LLMError
 from models import SessionContext, StoryPlan, UserPreferences
 
 INDEX_PATH = Path("corpus_index.json")
+MOON_SCENE_PATH = Path(__file__).resolve().parent / "assets" / "moon_scene.jpg"
+
+
+def _app_styles() -> str:
+    moon_b64 = base64.b64encode(MOON_SCENE_PATH.read_bytes()).decode()
+    return f"""
+    <style>
+    div[data-testid="stToolbar"] {{ visibility: hidden; height: 0; }}
+    div[data-testid="stDecoration"] {{ display: none; }}
+    #MainMenu {{ visibility: hidden; }}
+    header {{ visibility: hidden; }}
+    footer {{ visibility: hidden; }}
+    [data-testid="InputInstructions"] {{ display: none !important; }}
+    .stDeployButton {{ display: none !important; }}
+
+    .stApp {{
+        position: relative;
+        background: transparent !important;
+        isolation: isolate;
+    }}
+
+    .stApp::before {{
+        content: "";
+        position: fixed;
+        inset: -8%;
+        z-index: -2;
+        pointer-events: none;
+        background-image: url("data:image/jpeg;base64,{moon_b64}");
+        background-size: cover;
+        background-position: center 42%;
+        animation: bg-drift 28s ease-in-out infinite alternate;
+        will-change: transform;
+    }}
+
+    .stApp::after {{
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background:
+            radial-gradient(circle at 12% 10%, rgba(255, 255, 255, 0.95) 0 1px, transparent 2px),
+            radial-gradient(circle at 78% 16%, rgba(255, 255, 255, 0.85) 0 1px, transparent 2px),
+            radial-gradient(circle at 55% 8%, rgba(255, 255, 255, 0.9) 0 1.5px, transparent 2.5px),
+            radial-gradient(circle at 28% 22%, rgba(255, 255, 255, 0.75) 0 1px, transparent 2px),
+            radial-gradient(circle at 88% 20%, rgba(255, 255, 255, 0.8) 0 1px, transparent 2px),
+            radial-gradient(
+                circle at 50% 12%,
+                rgba(255, 225, 150, 0.38) 0%,
+                rgba(255, 200, 110, 0.14) 16%,
+                transparent 34%
+            ),
+            linear-gradient(rgba(8, 12, 30, 0.52), rgba(6, 10, 26, 0.68));
+        animation: overlay-breathe 10s ease-in-out infinite;
+    }}
+
+    [data-testid="stAppViewContainer"],
+    .main {{
+        position: relative;
+        z-index: 1;
+    }}
+
+    .block-container {{
+        position: relative;
+        z-index: 2;
+        padding-top: 2rem;
+    }}
+
+    .stApp h1,
+    .stApp h2,
+    .stApp h3,
+    .stApp h4,
+    .stApp h5,
+    .stApp h6,
+    .stApp [data-testid="stMarkdownContainer"] p,
+    .stApp [data-testid="stMarkdownContainer"] li,
+    .stApp [data-testid="stMarkdownContainer"] span,
+    .stApp label[data-testid="stWidgetLabel"] p,
+    .stApp label[data-testid="stWidgetLabel"] span,
+    .stApp .stCaption,
+    .stApp [data-testid="stCaptionContainer"] {{
+        color: #fff8ee !important;
+        font-weight: 700 !important;
+        text-shadow: 0 1px 5px rgba(0, 0, 0, 0.92), 0 0 18px rgba(0, 0, 0, 0.45);
+    }}
+
+    .stApp h1 {{
+        font-weight: 800 !important;
+        letter-spacing: 0.01em;
+    }}
+
+    .stApp h2, .stApp h3 {{
+        font-weight: 800 !important;
+    }}
+
+    .stApp [data-testid="stMarkdownContainer"] p {{
+        line-height: 1.65;
+    }}
+
+    .stApp label[data-testid="stWidgetLabel"] p,
+    .stApp label[data-testid="stWidgetLabel"] span {{
+        font-weight: 700 !important;
+    }}
+
+    .stApp .stTextInput input,
+    .stApp div[data-baseweb="select"] > div {{
+        background-color: rgba(255, 252, 245, 0.94) !important;
+        color: #1a1a2e !important;
+        font-weight: 600 !important;
+        border: 1px solid rgba(255, 248, 238, 0.35) !important;
+    }}
+
+    @keyframes bg-drift {{
+        0% {{ transform: scale(1.06) translate(0%, 0%); }}
+        33% {{ transform: scale(1.09) translate(-1.2%, -1.5%); }}
+        66% {{ transform: scale(1.07) translate(1%, 0.8%); }}
+        100% {{ transform: scale(1.08) translate(-0.5%, 1.2%); }}
+    }}
+
+    @keyframes overlay-breathe {{
+        0%, 100% {{ opacity: 1; }}
+        50% {{ opacity: 0.88; }}
+    }}
+
+    @media (max-width: 640px) {{
+        .stApp::before {{
+            inset: -4%;
+            animation-duration: 36s;
+        }}
+    }}
+
+    @media (prefers-reduced-motion: reduce) {{
+        .stApp::before,
+        .stApp::after {{
+            animation: none !important;
+        }}
+    }}
+    </style>
+    """
 
 
 def age_to_band(age: int) -> str:
@@ -220,22 +360,7 @@ def _init_state() -> None:
 
 def main() -> None:
     st.set_page_config(page_title="Bedtime Story Maker", page_icon="🌙", layout="centered")
-    # Hide Streamlit chrome that is not part of the child experience:
-    # "Deploy", and the "Press Enter to apply" input hint.
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stToolbar"] { visibility: hidden; height: 0; }
-        div[data-testid="stDecoration"] { display: none; }
-        #MainMenu { visibility: hidden; }
-        header { visibility: hidden; }
-        footer { visibility: hidden; }
-        [data-testid="InputInstructions"] { display: none !important; }
-        .stDeployButton { display: none !important; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown(_app_styles(), unsafe_allow_html=True)
     _init_state()
 
     st.title("Bedtime Story Maker")
