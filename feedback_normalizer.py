@@ -50,6 +50,11 @@ Classify their reaction. Guidance:
   thing -- extracted_element MUST be null here, never a word like "funny".
 - "make it calmer" / "the ending should be calmer" / "too exciting" -> intent: "other",
   approved: false, extracted_element null
+- Behavioral/thematic asks ("they should fight", "make them rivals", "make it scary",
+  "one should die") -> approved: false, intent: "other", extracted_element null,
+  explicit_ask set to a short faithful phrase summarizing the behavior/theme
+- Retracting a prior behavioral ask ("don't make them fight", "not so scary")
+  -> explicit_ask null, removed_explicit_ask set when clearly retracting one
 - "that's too long" / "too much" -> intent: "too_long", extracted_element null
 - "that's scary" / "I don't like scary things" -> intent: "too_scary", extracted_element null
 - Anything else -> intent: "other", approved false unless clearly positive with no change
@@ -58,12 +63,17 @@ extracted_element and removed_element are ONLY for concrete nameable things
 (a character, an animal, an object, a specific place) -- never a mood, tone,
 or abstract quality like "funny", "exciting", "calmer", or "friendship".
 
+explicit_ask and removed_explicit_ask are ONLY for behavioral/thematic requests
+(fighting, rivalry, scary, silly, death/harm asks). Never put concrete entities here.
+
 Reply with ONLY a JSON object:
 {{
   "approved": true or false,
   "intent": one of "approve", "new_idea", "more_fun", "too_long", "too_scary", "add_element", "other",
   "extracted_element": "a short phrase for a concrete thing newly requested, e.g. 'a dog', or null",
-  "removed_element": "a short phrase for a concrete thing explicitly retracted, e.g. 'a dragon', or null"
+  "removed_element": "a short phrase for a concrete thing explicitly retracted, e.g. 'a dragon', or null",
+  "explicit_ask": "short phrase for a behavioral/thematic request, e.g. 'they should fight', or null",
+  "removed_explicit_ask": "short phrase retracting a prior behavioral ask, or null"
 }}
 """
 
@@ -78,7 +88,7 @@ def _validate(parsed: dict[str, Any]) -> list[str]:
         problems.append("approved: must be boolean")
     if parsed.get("intent") not in _VALID_INTENTS:
         problems.append(f"intent: {parsed.get('intent')!r} not recognized")
-    for key in ("extracted_element", "removed_element"):
+    for key in ("extracted_element", "removed_element", "explicit_ask", "removed_explicit_ask"):
         if key in parsed and parsed[key] is not None and not isinstance(parsed[key], str):
             problems.append(f"{key}: must be a string or null")
     return problems
@@ -102,6 +112,10 @@ def interpret(
     element = str(element).strip() if element else None
     removed = parsed.get("removed_element")
     removed = str(removed).strip() if removed else None
+    explicit_ask = parsed.get("explicit_ask")
+    explicit_ask = str(explicit_ask).strip() if explicit_ask else None
+    removed_explicit_ask = parsed.get("removed_explicit_ask")
+    removed_explicit_ask = str(removed_explicit_ask).strip() if removed_explicit_ask else None
 
     # `approved` is derived, not trusted from the model's own boolean. A real
     # run returned approved=true, intent="approve" for "can there be a dog
@@ -126,4 +140,6 @@ def interpret(
         intent=intent,
         extracted_element=element,
         removed_element=removed,
+        explicit_ask=explicit_ask,
+        removed_explicit_ask=removed_explicit_ask,
     )

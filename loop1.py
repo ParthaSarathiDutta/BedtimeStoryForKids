@@ -47,14 +47,20 @@ def run(
 ) -> SessionContext:
     mock_fns = mock_fns or {}
 
-    known, must_include, dropped = preference_extractor.extract_preferences(
+    known, must_include, explicit_asks, dropped = preference_extractor.extract_preferences(
         initial_request, llm, mock_fn=mock_fns.get("extract"),
     )
     if reading_band:
         known["reading_band"] = reading_band  # explicit age ask wins over extractor guess
-    preferences = UserPreferences(initial_request=initial_request, known=known, must_include=must_include)
+    preferences = UserPreferences(
+        initial_request=initial_request, known=known, must_include=must_include,
+        explicit_asks=explicit_asks,
+    )
     session = SessionContext(preferences=preferences)
-    session.log("preferences_extracted", known=known, must_include=must_include, dropped=dropped)
+    session.log(
+        "preferences_extracted", known=known, must_include=must_include,
+        explicit_asks=explicit_asks, dropped=dropped,
+    )
 
     def agent_fn(prior_plan: StoryPlan | None, notes: str | None) -> StoryPlan:
         cards = _fetch_inspiration(preferences, index)
@@ -88,6 +94,7 @@ def run(
         session.log(
             "child_response", raw_text=raw, approved=response.approved, intent=response.intent,
             extracted_element=response.extracted_element, removed_element=response.removed_element,
+            explicit_ask=response.explicit_ask, removed_explicit_ask=response.removed_explicit_ask,
         )
         if response.approved:
             return True, None

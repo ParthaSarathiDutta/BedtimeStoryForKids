@@ -52,10 +52,24 @@ emphasized them:
   A story satisfies "I want something about friendship" in countless
   different ways; it does not need a literal object called "friendship".
 
+explicit_asks -- explicit behavioral or thematic requests the child clearly
+stated. These are NOT concrete entities. Put them here when the child asks for
+how characters should behave or how the story should feel/act:
+  - "fighting", "they should fight", "make them rivals", "a showdown"
+  - "make it scary", "make it very silly", "be spooky"
+  - "one should die" (if stated)
+Do NOT put concrete characters/objects here ("a dragon", "a puppy").
+Do NOT put ordinary creative variation here ("make it funnier" is a mood tweak,
+not a durable explicit ask unless they clearly demand a specific behavior).
+
 Example: "a cat and a mouse who are friends in a garden" ->
   must_include: ["a cat", "a mouse", "a garden"]
   interest_tags: ["friendship", "garden"]
-(friendship is the theme, not a nameable thing -- it is a tag, not a requirement)
+  explicit_asks: []
+
+Example: "dinosaur and bluewhale fighting" ->
+  must_include: ["dinosaur", "bluewhale"]
+  explicit_asks: ["fighting between the dinosaur and blue whale"]
 
 CHILD'S REQUEST: {request}
 
@@ -66,7 +80,8 @@ Reply with ONLY a JSON object, no prose before or after:
     ... only the fields you are confident about, using the exact field names above ...
   }},
   "interest_tags": ["..."],
-  "must_include": ["..."]
+  "must_include": ["..."],
+  "explicit_asks": ["..."]
 }}
 """
 
@@ -97,6 +112,8 @@ def _validate(parsed: dict[str, Any]) -> list[str]:
         problems.append("interest_tags: not a list")
     if not isinstance(parsed.get("must_include", []), list):
         problems.append("must_include: not a list")
+    if not isinstance(parsed.get("explicit_asks", []), list):
+        problems.append("explicit_asks: not a list")
     return problems
 
 
@@ -152,8 +169,8 @@ def extract_preferences(
     request: str,
     llm: LLMClient,
     mock_fn: Callable[[str], dict[str, Any]] | None = None,
-) -> tuple[dict[str, Any], list[str], list[str]]:
-    """Returns (preferences shaped like search_metadata, must_include, dropped-value log)."""
+) -> tuple[dict[str, Any], list[str], list[str], list[str]]:
+    """Returns (preferences shaped like search_metadata, must_include, explicit_asks, dropped-value log)."""
     prompt = build_prompt(request)
     parsed = llm.complete_json(
         prompt,
@@ -168,4 +185,5 @@ def extract_preferences(
         prefs["interest_tags"] = list(tags)
     known, dropped = _normalize_preferences(prefs)
     must_include = [str(x).strip() for x in (parsed.get("must_include") or []) if str(x).strip()]
-    return known, must_include, dropped
+    explicit_asks = [str(x).strip() for x in (parsed.get("explicit_asks") or []) if str(x).strip()]
+    return known, must_include, explicit_asks, dropped

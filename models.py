@@ -31,6 +31,8 @@ class ChildResponse:
     ]
     extracted_element: str | None = None   # concrete entity newly requested, e.g. "a dog"
     removed_element: str | None = None     # concrete entity explicitly retracted, e.g. "a dragon"
+    explicit_ask: str | None = None        # behavioral/thematic ask, e.g. "they should fight"
+    removed_explicit_ask: str | None = None
 
 
 @dataclass
@@ -44,6 +46,7 @@ class UserPreferences:
     initial_request: str
     known: dict[str, Any] = field(default_factory=dict)   # schema field name -> value(s)
     must_include: list[str] = field(default_factory=list)  # e.g. "dragon" -- checked every round
+    explicit_asks: list[str] = field(default_factory=list)  # behavioral/thematic asks, e.g. "fighting"
     plan_feedback: list[ChildResponse] = field(default_factory=list)
     story_feedback: list[ChildResponse] = field(default_factory=list)
 
@@ -55,6 +58,11 @@ class UserPreferences:
             self.must_include = [m for m in self.must_include if m.lower() != target]
         if response.extracted_element and response.extracted_element not in self.must_include:
             self.must_include.append(response.extracted_element)
+        if response.removed_explicit_ask:
+            target = response.removed_explicit_ask.lower()
+            self.explicit_asks = [a for a in self.explicit_asks if a.lower() != target]
+        if response.explicit_ask and response.explicit_ask not in self.explicit_asks:
+            self.explicit_asks.append(response.explicit_ask)
 
     def record_plan_feedback(self, response: ChildResponse) -> None:
         self.plan_feedback.append(response)
@@ -91,9 +99,9 @@ class StoryPlan:
     decides how literally to follow it.
 
     `child_notice` is an optional 1-2 sentence message when the Planner had to
-    adapt an explicit child request for bedtime safety (transparent safe
-    adaptation). Null for ordinary revisions. Shown to the child; never
-    contains policy/moderation jargon.
+    adapt an explicit child request for bedtime safety or age/bedtime constraints
+    (transparent constraint adaptation). Null for ordinary revisions. Shown to the
+    child; never contains policy/moderation jargon.
     """
     concept: str                    # 1-3 sentence pitch, shown to the child
     protagonist: str

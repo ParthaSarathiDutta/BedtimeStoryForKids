@@ -12,9 +12,11 @@ Run: python test_loop1.py
 from __future__ import annotations
 
 import arc_profiles
+import feedback_normalizer
 import judge
 import loop1
 import mock_agents
+import phrase_match
 import planner
 import preference_extractor
 import schema
@@ -64,7 +66,7 @@ SAMPLE_INDEX = [
 
 def test_preference_extractor_omits_unmentioned_fields() -> None:
     llm = LLMClient(mock=True)
-    known, must_include, dropped = preference_extractor.extract_preferences(
+    known, must_include, explicit_asks, dropped = preference_extractor.extract_preferences(
         "I want a story about a dragon and a spaceship", llm, mock_fn=mock_agents.mock_extract,
     )
     check("story_type extracted", known.get("story_type"), ["adventure"])
@@ -90,9 +92,10 @@ def test_preference_extractor_drops_cross_field_bleed() -> None:
             },
             "interest_tags": [],
             "must_include": [],
+            "explicit_asks": [],
         }
 
-    known, must_include, dropped = preference_extractor.extract_preferences("x", llm, mock_fn=mock_fn)
+    known, must_include, explicit_asks, dropped = preference_extractor.extract_preferences("x", llm, mock_fn=mock_fn)
     check_true("bled value dropped, not kept", "tone" not in known)
     check("valid field survives alongside the drop", known.get("protagonist_type"), "animal")
     check_true("drop is logged", any("tone" in d for d in dropped))
@@ -232,12 +235,118 @@ def test_feedback_normalizer_distrusts_contradictory_approval() -> None:
     check("intent demoted from approve", response.intent, "other")
 
 
+def test_phrase_match_bluewhale_and_word_boundary() -> None:
+    check_true(
+        "blue whale satisfies bluewhale",
+        phrase_match.mentions_required_phrase("bluewhale", "a mighty blue whale swims"),
+    )
+    check_true(
+        "bluewhale satisfies blue whale spacing",
+        phrase_match.mentions_required_phrase("blue whale", "meet bluewhale splash"),
+    )
+    check_true(
+        "fire-fly matches firefly",
+        phrase_match.mentions_required_phrase("fire-fly", "a glowing firefly"),
+    )
+    check_true(
+        "cat does not match caterpillar",
+        not phrase_match.mentions_required_phrase("cat", "a caterpillar inches along"),
+    )
+
+
+def test_judge_bluewhale_spacing_not_false_failure() -> None:
+    llm = LLMClient(mock=True)
+    prefs = UserPreferences(initial_request="x", must_include=["bluewhale"])
+    plan = StoryPlan(
+        concept="A dinosaur meets a blue whale in the deep sea.",
+        protagonist="a dinosaur and a blue whale",
+        setting="the ocean",
+        plot_shape="overcome challenge",
+        arc_beats=["Hook", "Resolution"],
+        metadata={},
+        open_question=None,
+    )
+    verdict = judge.evaluate_plan(plan, prefs, llm, mock_fn=mock_agents.make_mock_judge())
+    check("bluewhale vs blue whale passes deterministically", verdict.deterministic_failures, [])
+
+
+def test_judge_rejects_teamwork_drift_without_notice() -> None:
+    llm = LLMClient(mock=True)
+    prefs = UserPreferences(
+        initial_request="dinosaur and bluewhale fighting",
+        must_include=["dinosaur", "bluewhale"],
+        explicit_asks=["they should fight with each other"],
+    )
+    plan = StoryPlan(
+        concept="A dinosaur and a blue whale team up to explore the jungle together.",
+        protagonist="a dinosaur and a blue whale",
+        setting="a jungle",
+        plot_shape="exploration",
+        arc_beats=["Hook", "Resolution"],
+        metadata={},
+        open_question=None,
+    )
+    verdict = judge.evaluate_plan(plan, prefs, llm, mock_fn=mock_agents.make_mock_judge())
+    check("teamwork drift fails", verdict.passed, False)
+    check_true(
+        "failure mentions conflict replacement or missing notice",
+        any(
+            "teamwork" in f or "child_notice" in f
+            for f in verdict.deterministic_failures
+        ),
+    )
+
+
+def test_explicit_asks_persist_from_feedback() -> None:
+    prefs = UserPreferences(initial_request="dinosaur fighting", must_include=["dinosaur"])
+    response = ChildResponse(
+        raw_text="they should fight with each other",
+        approved=False,
+        intent="other",
+        explicit_ask="they should fight with each other",
+    )
+    prefs.record_plan_feedback(response)
+    check("explicit ask stored", prefs.explicit_asks, ["they should fight with each other"])
+
+
+def test_conflict_only_revision_preserves_rivalry_without_notice() -> None:
+    llm = LLMClient(mock=True)
+    prefs = UserPreferences(
+        initial_request="dinosaur and blue whale fighting",
+        must_include=["dinosaur", "blue whale"],
+        explicit_asks=["they should fight with each other"],
+    )
+    prior = StoryPlan(
+        concept="Dino and Blue are about to have a big jungle showdown!",
+        protagonist="Dino the dinosaur and Blue the blue whale",
+        setting="a jungle",
+        plot_shape="overcome challenge",
+        arc_beats=["Hook", "Challenge", "Warm ending"],
+        metadata={"reading_band": "7-8"},
+        open_question=None,
+    )
+    notes = (
+        'The child reacted: "they should fight with each other" '
+        "(interpreted as other). Revise the plan to address this while keeping "
+        "everything they already liked."
+    )
+    plan = planner.create_plan(
+        prefs, [], llm, prior_plan=prior, revision_notes=notes,
+        mock_fn=mock_agents.make_mock_plan(),
+    )
+    text = (plan.concept + " " + plan.protagonist).lower()
+    check_true("rivalry preserved", any(w in text for w in ("showdown", "rival", "contest", "compete", "fight")))
+    check_true("no teamwork pivot", "team up" not in text and "explore together" not in text)
+    check("no notice when conflict honored", plan.child_notice, None)
+
+
 def test_transparent_safety_adaptation_preserves_safe_conflict() -> None:
     """Mixed feedback: keep fight/rivalry, refuse death, emit child_notice."""
     llm = LLMClient(mock=True)
     prefs = UserPreferences(
         initial_request="dinosaur and blue whale fighting",
         must_include=["dinosaur", "blue whale"],
+        explicit_asks=["they should fight with each other", "one should die"],
     )
     prior = StoryPlan(
         concept="Dino and Blue are about to have a big jungle showdown!",

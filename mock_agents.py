@@ -25,6 +25,7 @@ def mock_extract(prompt: str) -> dict[str, Any]:
         },
         "interest_tags": ["dragon", "space"],
         "must_include": ["a dragon"],
+        "explicit_asks": [],
     }
 
 
@@ -49,9 +50,15 @@ def make_mock_plan(fail_first_n_internal: int = 0):
         prior_concept = re.search(r'The previous concept was:\n"(.*)"', prompt)
         notes_match = re.search(r"Revision guidance to address: (.*)", prompt)
         notes = (notes_match.group(1) if notes_match else "").lower()
+        explicit_line = re.search(r"Explicit behavioral/thematic asks[^\n]*:\n([^\n]+)", prompt)
+        explicit_blob = (explicit_line.group(1).strip() if explicit_line else "").lower()
+        if explicit_blob == "(none stated)":
+            explicit_blob = ""
 
         unsafe = any(w in notes for w in ("die", "death", "kill", "stab", "murder"))
-        wants_fight = any(w in notes for w in ("fight", "battle", "rival"))
+        wants_fight = any(w in notes for w in ("fight", "battle", "rival")) or any(
+            w in explicit_blob for w in ("fight", "rival", "showdown", "battle")
+        )
 
         if prior_protag and "REVISION" in prompt:
             protagonist = prior_protag.group(1).strip()
@@ -64,9 +71,15 @@ def make_mock_plan(fail_first_n_internal: int = 0):
                 "and one loses with a comic tumble — nobody gets badly hurt."
             )
             notice = (
-                "I'm changing that part a little to keep the story safe for bedtime. "
+                "I'm softening the fight a little to keep the story safe for bedtime. "
                 "They can still have a big showdown, but nobody will be badly hurt."
             )
+        elif wants_fight and "REVISION" in prompt:
+            concept = (
+                f"{protagonist} become fierce rivals in a dramatic contest to prove "
+                "who is strongest — a big showdown with lots of energy!"
+            )
+            notice = None
         elif unsafe:
             concept = (
                 f"Join {protagonist} on a brave adventure with a safe challenge "

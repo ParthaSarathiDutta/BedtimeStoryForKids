@@ -31,6 +31,9 @@ Known preferences (the child already told us these -- do not ask about them agai
 Story elements the child explicitly asked for -- these MUST appear in your concept:
 {must_include}
 
+Explicit behavioral/thematic asks the child stated (honor or safely adapt):
+{explicit_asks}
+
 Structural inspiration from similar published children's stories. Use these
 ONLY for pacing/shape ideas -- never copy names, sentences, or specific events:
 {inspiration}
@@ -47,16 +50,17 @@ BEDTIME SAFETY (always):
   unless the child asked for friendship/teamwork.
 - Soften ONLY the unsafe part. Preserve the safe underlying intent.
 
-TRANSPARENT SAFE ADAPTATION:
-- When you must change something the child EXPLICITLY asked for because it is
-  not safe for bedtime, set "child_notice" to 1-2 short, warm sentences for the
-  child explaining that you changed that part to keep the story safe for
-  bedtime, and what you kept instead (e.g. a big showdown, but nobody gets
-  badly hurt). Do NOT use words like policy, moderation, inappropriate,
-  filter, or "guidelines".
-- When you did NOT need to change an explicit request for safety (including
-  ordinary asks like "add a puppy", "make it sillier", or "no dragon, make it
-  a dinosaur"), set "child_notice" to null.
+TRANSPARENT CONSTRAINT ADAPTATION:
+- When you must materially change something the child EXPLICITLY asked for
+  because of bedtime safety, age, or calm-ending constraints, set "child_notice"
+  to 1-2 short, warm sentences for the child explaining what you changed and
+  what you kept instead (e.g. a big showdown, but nobody gets badly hurt).
+  Do NOT use words like policy, moderation, inappropriate, filter, or "guidelines".
+- When you honor an explicit ask as-is, or only make ordinary creative choices
+  ("add a puppy", "make it sillier", "put them in space"), set "child_notice" to null.
+- Re-evaluate child_notice on EVERY revision (including Judge-driven revisions).
+  The notice must describe the FINAL concept you are returning, not an earlier draft.
+  Clear child_notice if the final concept no longer materially adapts an explicit ask.
 
 {revision_block}Respond with ONLY a JSON object:
 {{
@@ -65,7 +69,7 @@ TRANSPARENT SAFE ADAPTATION:
   "setting": "short phrase",
   "plot_shape": "one value from the list above",
   "open_question": "ONE short, playful, multiple-choice question about something genuinely undecided, or null if the concept is already complete enough",
-  "child_notice": "1-2 child-facing sentences if you adapted an explicit request for bedtime safety, otherwise null"
+  "child_notice": "1-2 child-facing sentences if you materially adapted an explicit ask for bedtime constraints, otherwise null"
 }}
 """
 
@@ -77,12 +81,19 @@ Previous setting: {prior_setting}
 Revision guidance to address: {notes}
 
 When revising:
-- Honor every SAFE part of what the child asked in the guidance above.
+- Honor every SAFE part of what the child asked in the guidance above AND every
+  item in explicit behavioral/thematic asks.
 - If part of their ask is unsafe for bedtime, adapt ONLY that part; keep the
   rest (including rivalry/fighting as a safe showdown if they asked for a fight).
+- NEVER replace explicit conflict/rivalry asks with teamwork, exploring together,
+  or friendship-only premises unless the child asked for cooperation.
 - Keep the same character names from the previous protagonist/concept unless
   the child asked to rename or replace them.
-- Set child_notice only when you made a material safety adaptation; otherwise null.
+- Set child_notice only when the FINAL concept materially adapts an explicit ask;
+  otherwise null. Update or clear child_notice if the adaptation changed.
+
+Previous child_notice (may be stale -- re-evaluate for the concept you return):
+"{prior_notice}"
 
 """
 
@@ -118,12 +129,14 @@ def build_prompt(
             prior_concept=prior_plan.concept,
             prior_protagonist=prior_plan.protagonist,
             prior_setting=prior_plan.setting,
+            prior_notice=prior_plan.child_notice or "(none)",
             notes=revision_notes,
         )
     return PROMPT_TEMPLATE.format(
         initial_request=preferences.initial_request or "(not recorded)",
         known=_format_known(preferences.known),
         must_include=", ".join(preferences.must_include) or "(none stated)",
+        explicit_asks="; ".join(preferences.explicit_asks) or "(none stated)",
         inspiration=_format_inspiration(cards),
         plot_shapes=" | ".join(plot_field.values) + " | other",
         revision_block=revision_block,

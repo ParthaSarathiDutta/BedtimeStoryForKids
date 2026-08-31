@@ -99,13 +99,17 @@ def _plan_with_judge(
 
 
 def start_loop1(request: str, age: int, llm: LLMClient, index: list) -> SessionContext:
-    known, must_include, dropped = preference_extractor.extract_preferences(request, llm)
+    known, must_include, explicit_asks, dropped = preference_extractor.extract_preferences(request, llm)
     known["reading_band"] = age_to_band(age)
     preferences = UserPreferences(
         initial_request=request, known=known, must_include=must_include,
+        explicit_asks=explicit_asks,
     )
     session = SessionContext(preferences=preferences)
-    session.log("preferences_extracted", known=known, must_include=must_include, dropped=dropped)
+    session.log(
+        "preferences_extracted", known=known, must_include=must_include,
+        explicit_asks=explicit_asks, dropped=dropped,
+    )
     session.plan = _plan_with_judge(preferences, index, llm, None, None, session)
     return session
 
@@ -117,6 +121,7 @@ def revise_plan(session: SessionContext, raw: str, llm: LLMClient, index: list) 
     session.log(
         "child_response", raw_text=raw, approved=response.approved, intent=response.intent,
         extracted_element=response.extracted_element, removed_element=response.removed_element,
+        explicit_ask=response.explicit_ask, removed_explicit_ask=response.removed_explicit_ask,
     )
     if response.approved:
         return True

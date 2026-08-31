@@ -11,10 +11,11 @@ the rubber-stamping `gpt-3.5-turbo` otherwise defaults to.
 
 from __future__ import annotations
 
-import re
 from typing import Any, Callable
 
 import config
+import explicit_asks as exp
+import phrase_match
 import schema
 from llm import LLMClient
 from models import JudgeResult, StoryDraft, StoryPlan, UserPreferences
@@ -41,7 +42,10 @@ SETTING: {setting}
 PLOT SHAPE: {plot_shape}
 NEXT QUESTION FOR THE CHILD: {open_question}
 
-WHAT THE CHILD HAS ASKED FOR SO FAR: {must_include}
+WHAT THE CHILD HAS ASKED FOR SO FAR (concrete elements): {must_include}
+
+EXPLICIT BEHAVIORAL/THEMATIC ASKS the child stated (honor or safely adapt):
+{explicit_asks}
 
 Score EACH dimension separately on this 1-5 scale, with ONE short reason each.
 Do not give every dimension the same score unless they genuinely deserve it --
@@ -51,11 +55,23 @@ each one is a different question:
 
 - engagement: would a child this age be excited to hear this story?
 - clarity: is the concept clear, not confusing or self-contradictory?
-- warmth: gentle enough for BEDTIME. Age-appropriate rivalry, contests, or
-  comic showdowns can still score 3 or higher if nobody is badly hurt and the
-  story can settle calmly -- do NOT require pure friendship/cooperation.
+- warmth: gentle enough for BEDTIME overall. Age-appropriate rivalry, contests,
+  arguments, or comic showdowns can still score 3 or higher if nobody is badly
+  hurt and the story can settle calmly -- warmth applies to emotional treatment
+  and resolution, NOT to erasing adversarial intent the child explicitly asked for.
+  Do NOT require pure friendship, teamwork, or cooperation when the child asked
+  for rivalry or fighting (unless you are safely adapting harm, with notice).
 - age_appropriateness: suitable for ages 5-10. Death, killing, or severe harm
-  is a clear failure. Playful conflict or rivalry is acceptable.
+  is a clear failure. Playful conflict, rivalry, or contest is acceptable.
+  If the concept materially adapts an explicit ask because of bedtime safety,
+  a child_notice MUST explain the adaptation.
+
+FIDELITY TO EXPLICIT ASKS:
+- If explicit asks include fighting/rivalry, the concept must keep safe
+  adversarial intent (contest, showdown, rivalry) -- NOT silently replace it
+  with teamwork, exploring together, or friendship-only premises.
+- Do NOT recommend "add teamwork/cooperation" merely because the story has rivalry.
+- If an explicit ask was materially adapted, child_notice must explain what changed.
 
 Reply with ONLY a JSON object:
 {{
@@ -66,36 +82,6 @@ Reply with ONLY a JSON object:
   "revision_feedback": "one or two sentences of concrete guidance for whatever scored below 3, or 'looks good' if nothing did"
 }}
 """
-
-
-_LEADING_ARTICLES = ("a ", "an ", "the ")
-
-
-def _core_phrase(phrase: str) -> str:
-    """Strip a leading article so "a cat" matches "a mischievous cat".
-
-    A real run showed literal substring matching fails almost every time:
-    the Planner naturally writes "a mischievous cat", not "a cat", so
-    `"a cat" in haystack` is false even though the cat is clearly there. That
-    false failure burned two extra Planner/Judge cycles on every scenario
-    with a populated must_include, since it only ever "passed" via the
-    best-effort fallback once revisions were exhausted. This does not fix
-    every phrasing mismatch (plurals, synonyms), but it fixes the common one.
-    """
-    p = phrase.strip().lower()
-    for article in _LEADING_ARTICLES:
-        if p.startswith(article):
-            return p[len(article):]
-    return p
-
-
-def _mentions(core: str, haystack: str) -> bool:
-    """Word-boundary match, not plain substring: "cat" must not match inside
-    "caterpillar". Article-stripping alone would let that slip through.
-    """
-    if not core:
-        return True
-    return re.search(rf"\b{re.escape(core)}\b", haystack) is not None
 
 
 def _deterministic_checks(plan: StoryPlan, preferences: UserPreferences) -> list[str]:
@@ -109,9 +95,22 @@ def _deterministic_checks(plan: StoryPlan, preferences: UserPreferences) -> list
     haystack = f"{plan.concept} {plan.protagonist} {plan.setting}".lower()
 
     for item in preferences.must_include:
-        core = _core_phrase(item)
-        if core and not _mentions(core, haystack):
+        if not phrase_match.mentions_required_phrase(item, haystack):
             failures.append(f"missing element the child asked for: {item!r}")
+
+    concept = exp.concept_text(plan)
+    if exp.wants_conflict(preferences) and exp.has_teamwork_pivot(concept) and not exp.has_rivalry(concept):
+        failures.append("concept replaced explicit conflict/rivalry ask with teamwork/cooperation")
+
+    if exp.has_harm(concept):
+        failures.append("concept includes death/severe harm inappropriate for bedtime")
+
+    needs_notice = (
+        (exp.wants_conflict(preferences) and exp.has_teamwork_pivot(concept) and not exp.has_rivalry(concept))
+        or (exp.wants_harm(preferences) and not exp.has_harm(concept))
+    )
+    if needs_notice and not (plan.child_notice or "").strip():
+        failures.append("material adaptation of explicit ask requires child_notice")
 
     plot_field = schema.FIELDS_BY_NAME["plot_shape"]
     if plan.plot_shape not in plot_field.allowed:
@@ -153,6 +152,7 @@ def build_prompt(plan: StoryPlan, preferences: UserPreferences) -> str:
         plot_shape=plan.plot_shape,
         open_question=plan.open_question or "(none)",
         must_include=", ".join(preferences.must_include) or "(nothing specific yet)",
+        explicit_asks="; ".join(preferences.explicit_asks) or "(none stated)",
     )
 
 
@@ -268,8 +268,7 @@ def _deterministic_story_checks(draft: StoryDraft, preferences: UserPreferences)
     text_lower = draft.text.lower()
 
     for item in preferences.must_include:
-        core = _core_phrase(item)
-        if core and not _mentions(core, text_lower):
+        if not phrase_match.mentions_required_phrase(item, text_lower):
             failures.append(f"missing element the child asked for: {item!r}")
 
     min_words, max_words = config.word_count_band(draft.plan.metadata.get("reading_band"))
