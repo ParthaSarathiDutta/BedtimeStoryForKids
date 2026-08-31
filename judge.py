@@ -358,3 +358,30 @@ def evaluate_story(
         deterministic_failures=det_failures,
         feedback=feedback,
     )
+
+
+def is_primarily_calm_ending_failure(verdict: JudgeResult) -> bool:
+    """True when the only semantic failure is calm_ending.
+
+    Used by Loop 2 to choose targeted ending repair over a full rewrite.
+    Requires: not passed, no deterministic failures, calm_ending below its
+    strict threshold, and every other dimension at or above its own pass bar.
+    A missing must_include or a weak preference_adherence still needs a full
+    regeneration -- ending repair cannot invent a dropped dragon.
+    """
+    if verdict.passed or verdict.deterministic_failures:
+        return False
+    # scores are normalized to [0, 1]; compare against the same bars evaluate_story uses
+    calm = verdict.scores.get("calm_ending")
+    if calm is None or calm >= _STRICT_PASS_SCORE / _MAX_SCORE:
+        return False
+    for dim in DIMENSIONS_STORY:
+        if dim == "calm_ending":
+            continue
+        score = verdict.scores.get(dim)
+        if score is None:
+            return False
+        bar = _STRICT_PASS_SCORE if dim in _STRICT_DIMENSIONS_STORY else PASS_SCORE
+        if score < bar / _MAX_SCORE:
+            return False
+    return True

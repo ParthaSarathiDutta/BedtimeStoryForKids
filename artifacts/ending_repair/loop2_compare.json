@@ -1,0 +1,170 @@
+[
+  {
+    "ending_repair_enabled": false,
+    "repeat": 1,
+    "attempts": 3,
+    "ending_repairs": 0,
+    "passed": false,
+    "fallback": true,
+    "final_calm": 1.0,
+    "final_pref": 0.6,
+    "latency": 19.6,
+    "verdict_history": [
+      {
+        "passed": false,
+        "calm": 0.6,
+        "pref": 0.6,
+        "kind": "storyteller_draft"
+      },
+      {
+        "passed": false,
+        "calm": 0.6,
+        "pref": 1.0,
+        "kind": "storyteller_draft"
+      },
+      {
+        "passed": false,
+        "calm": 1.0,
+        "pref": 0.6,
+        "kind": "storyteller_draft"
+      }
+    ]
+  },
+  {
+    "ending_repair_enabled": false,
+    "repeat": 2,
+    "attempts": 3,
+    "ending_repairs": 0,
+    "passed": false,
+    "fallback": true,
+    "final_calm": 0.6,
+    "final_pref": 0.6,
+    "latency": 22.76,
+    "verdict_history": [
+      {
+        "passed": false,
+        "calm": 0.6,
+        "pref": 1.0,
+        "kind": "storyteller_draft"
+      },
+      {
+        "passed": false,
+        "calm": 0.6,
+        "pref": 0.8,
+        "kind": "storyteller_draft"
+      },
+      {
+        "passed": false,
+        "calm": 0.6,
+        "pref": 0.6,
+        "kind": "storyteller_draft"
+      }
+    ]
+  },
+  {
+    "ending_repair_enabled": false,
+    "repeat": 3,
+    "attempts": 2,
+    "ending_repairs": 0,
+    "passed": true,
+    "fallback": false,
+    "final_calm": 1.0,
+    "final_pref": 0.8,
+    "latency": 13.78,
+    "verdict_history": [
+      {
+        "passed": false,
+        "calm": 1.0,
+        "pref": 0.6,
+        "kind": "storyteller_draft"
+      },
+      {
+        "passed": true,
+        "calm": 1.0,
+        "pref": 0.8,
+        "kind": "storyteller_draft"
+      }
+    ]
+  },
+  {
+    "ending_repair_enabled": true,
+    "repeat": 1,
+    "attempts": 2,
+    "ending_repairs": 1,
+    "passed": true,
+    "fallback": false,
+    "final_calm": 1.0,
+    "final_pref": 1.0,
+    "latency": 10.99,
+    "verdict_history": [
+      {
+        "passed": false,
+        "calm": 0.6,
+        "pref": 0.8,
+        "kind": "storyteller_draft"
+      },
+      {
+        "passed": true,
+        "calm": 1.0,
+        "pref": 1.0,
+        "kind": "storyteller_ending_repair"
+      }
+    ]
+  },
+  {
+    "ending_repair_enabled": true,
+    "repeat": 2,
+    "attempts": 2,
+    "ending_repairs": 1,
+    "passed": true,
+    "fallback": false,
+    "final_calm": 1.0,
+    "final_pref": 0.8,
+    "latency": 11.34,
+    "verdict_history": [
+      {
+        "passed": false,
+        "calm": 0.6,
+        "pref": 1.0,
+        "kind": "storyteller_draft"
+      },
+      {
+        "passed": true,
+        "calm": 1.0,
+        "pref": 0.8,
+        "kind": "storyteller_ending_repair"
+      }
+    ]
+  },
+  {
+    "ending_repair_enabled": true,
+    "repeat": 3,
+    "attempts": 3,
+    "ending_repairs": 0,
+    "passed": false,
+    "fallback": true,
+    "final_calm": 1.0,
+    "final_pref": 0.6,
+    "latency": 24.17,
+    "verdict_history": [
+      {
+        "passed": false,
+        "calm": 1.0,
+        "pref": 0.6,
+        "kind": "storyteller_draft"
+      },
+      {
+        "passed": false,
+        "calm": 1.0,
+        "pref": 0.6,
+        "kind": "storyteller_draft"
+      },
+      {
+        "passed": false,
+        "calm": 1.0,
+        "pref": 0.6,
+        "kind": "storyteller_draft"
+      }
+    ]
+  }
+]

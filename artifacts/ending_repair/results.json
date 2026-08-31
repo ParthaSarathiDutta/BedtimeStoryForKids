@@ -1,0 +1,644 @@
+[
+  {
+    "kind": "known_failure_repair",
+    "source": "artifacts/ab_experiment/stories/06_silly_cumulative_9-10__whole_story__r1.txt",
+    "before": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.8,
+        "warmth": 0.6,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.4,
+        "preference_adherence": 0.8
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm, but the chaos leading up to it may leave lingering excitement.) | Consider toning down the chaos leading up to the calm ending to ensure a more soothing bedtime experience for the child.",
+      "calm_ending": 0.4,
+      "preference_adherence": 0.8,
+      "arc_coherence": 0.8
+    },
+    "after": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.8,
+        "warmth": 0.6,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.4,
+        "preference_adherence": 0.8
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm, but the transition from chaos to calm could be smoother.) | The ending could be improved by emphasizing the transition from chaos to calm more clearly, ensuring a smoother and more reassuring bedtime conclusion.",
+      "calm_ending": 0.4,
+      "preference_adherence": 0.8,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_before": true,
+    "body_preserved": true,
+    "latency_seconds": 4.14,
+    "llm_calls": 2,
+    "story_file": "artifacts/ending_repair/stories/known_06_r1__ending_repair.txt",
+    "word_count_before": 475,
+    "word_count_after": 586
+  },
+  {
+    "kind": "known_failure_repair",
+    "source": "artifacts/ab_experiment/stories/06_silly_cumulative_9-10__whole_story__r2.txt",
+    "before": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.8,
+        "warmth": 0.6,
+        "age_appropriateness": 0.6,
+        "calm_ending": 0.4,
+        "preference_adherence": 0.8
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm, but the chaos leading up to it may leave lingering excitement.) | Consider toning down the chaos and ensuring a more peaceful resolution to better suit a bedtime story for younger children.",
+      "calm_ending": 0.4,
+      "preference_adherence": 0.8,
+      "arc_coherence": 0.8
+    },
+    "after": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.8,
+        "warmth": 0.6,
+        "age_appropriateness": 0.6,
+        "calm_ending": 0.4,
+        "preference_adherence": 0.8
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The story ends with Ollie drifting off to sleep, but the chaos leading up to it may not provide a calming resolution.) | Consider toning down the chaos and ensuring the ending provides a more soothing resolution for a bedtime story.",
+      "calm_ending": 0.4,
+      "preference_adherence": 0.8,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_before": true,
+    "body_preserved": true,
+    "latency_seconds": 5.05,
+    "llm_calls": 2,
+    "story_file": "artifacts/ending_repair/stories/known_06_r2__ending_repair.txt",
+    "word_count_before": 449,
+    "word_count_after": 487
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "06_silly_cumulative_9-10",
+    "attempt": 1,
+    "draft0": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.4,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 0.6
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: arc_coherence (The chain of events feels a bit disjointed and could be better connected.); calm_ending (The ending is calm and reassuring, but could be more focused on winding down.); preference_adherence (The story includes the elements the child asked for, but they could be more central to the plot.) | The story could benefit from a more cohesive connection between the chain of events and a stronger focus on the elements the child specifically requested.",
+      "calm_ending": 0.6,
+      "preference_adherence": 0.6,
+      "arc_coherence": 0.4
+    },
+    "primarily_calm_failure": false,
+    "gen_latency_seconds": 5.95,
+    "word_count_draft0": 397,
+    "outcome": "failed_but_not_calm_only"
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "06_silly_cumulative_9-10",
+    "attempt": 2,
+    "draft0": {
+      "passed": true,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.8,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 1.0,
+        "preference_adherence": 0.8
+      },
+      "deterministic_failures": [],
+      "feedback": "The engagement could be improved by adding more variety in the mishaps Ollie encounters throughout the story to keep the child's interest.",
+      "calm_ending": 1.0,
+      "preference_adherence": 0.8,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_failure": false,
+    "gen_latency_seconds": 9.24,
+    "word_count_draft0": 536,
+    "outcome": "passed_first_try"
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "06_silly_cumulative_9-10",
+    "attempt": 3,
+    "draft0": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.8,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 0.8
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calming and reassuring, but the silliness of the day's events may still leave some excitement lingering.) | Consider adding a more definitive calming moment at the end to ensure a fully peaceful conclusion for bedtime reading.",
+      "calm_ending": 0.6,
+      "preference_adherence": 0.8,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_failure": true,
+    "gen_latency_seconds": 7.48,
+    "word_count_draft0": 480,
+    "outcome": "paired_repair",
+    "full_regen": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.4,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.4,
+        "preference_adherence": 0.6
+      },
+      "deterministic_failures": [
+        "missing element the child asked for: 'a bicycle'"
+      ],
+      "feedback": "missing element the child asked for: 'a bicycle' | weak dimensions: arc_coherence (The story meanders a bit with all the different silly events happening, making it feel disjointed.); calm_ending (The ending is calm, but it could be more focused on Ollie's feelings and reflections.); preference_adherence (The story includes the elements of a dropped sock and a bicycle, but they could be more central to the plot.) | The story could benefit from a more focused plot that centers on Ollie's journey and feelings throughout the silly events. Try to tie the silliness back to Ollie's character development and make the elements the child asked for more integral to the story.",
+      "calm_ending": 0.4,
+      "preference_adherence": 0.6,
+      "arc_coherence": 0.4,
+      "latency_seconds": 9.61,
+      "llm_calls": 2,
+      "word_count": 452,
+      "story_file": "artifacts/ending_repair/stories/06_silly_cumulative_9-10__a3__full_regen.txt"
+    },
+    "ending_repair": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.8,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 1.0,
+        "preference_adherence": 0.6
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: preference_adherence (The story includes the elements of a dropped sock and a bicycle, but could have incorporated them more prominently.) | Consider emphasizing the elements the child explicitly asked for, such as the sock and bicycle, throughout the story to enhance engagement and adherence to preferences.",
+      "calm_ending": 1.0,
+      "preference_adherence": 0.6,
+      "arc_coherence": 0.8,
+      "latency_seconds": 4.29,
+      "llm_calls": 2,
+      "word_count": 548,
+      "body_preserved": true,
+      "story_file": "artifacts/ending_repair/stories/06_silly_cumulative_9-10__a3__ending_repair.txt"
+    },
+    "draft0_file": "artifacts/ending_repair/stories/06_silly_cumulative_9-10__a3__draft0.txt"
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "02_quest_rescue_7-8",
+    "attempt": 1,
+    "draft0": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but could be more explicitly soothing for bedtime.) | Consider adding more soothing and comforting language in the final paragraphs to enhance the bedtime feel of the story.",
+      "calm_ending": 0.6,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_failure": true,
+    "gen_latency_seconds": 5.57,
+    "word_count_draft0": 377,
+    "outcome": "paired_repair",
+    "full_regen": {
+      "passed": true,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 1.0,
+        "age_appropriateness": 0.8,
+        "calm_ending": 1.0,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "looks good",
+      "calm_ending": 1.0,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8,
+      "latency_seconds": 6.52,
+      "llm_calls": 2,
+      "word_count": 323,
+      "story_file": "artifacts/ending_repair/stories/02_quest_rescue_7-8__a1__full_regen.txt"
+    },
+    "ending_repair": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 1.0,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but could be more explicitly focused on winding down after the adventure.) | The ending could be enhanced by emphasizing the peaceful resolution and the characters settling down for a restful sleep after the adventure.",
+      "calm_ending": 0.6,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8,
+      "latency_seconds": 3.98,
+      "llm_calls": 2,
+      "word_count": 448,
+      "body_preserved": true,
+      "story_file": "artifacts/ending_repair/stories/02_quest_rescue_7-8__a1__ending_repair.txt"
+    },
+    "draft0_file": "artifacts/ending_repair/stories/02_quest_rescue_7-8__a1__draft0.txt"
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "02_quest_rescue_7-8",
+    "attempt": 2,
+    "draft0": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 1.0,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but could be more explicitly soothing for bedtime.) | The ending could be revised to provide a more explicitly calming and soothing conclusion for bedtime reading.",
+      "calm_ending": 0.6,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_failure": true,
+    "gen_latency_seconds": 7.12,
+    "word_count_draft0": 443,
+    "outcome": "paired_repair",
+    "full_regen": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but could have been more explicitly soothing for bedtime.) | Consider adding more soothing and comforting language in the final paragraphs to create a more calming bedtime atmosphere.",
+      "calm_ending": 0.6,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8,
+      "latency_seconds": 5.18,
+      "llm_calls": 2,
+      "word_count": 406,
+      "story_file": "artifacts/ending_repair/stories/02_quest_rescue_7-8__a2__full_regen.txt"
+    },
+    "ending_repair": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 1.0,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but could have been more explicitly focused on winding down after the adventure.) | Consider adding more emphasis on the calming and soothing elements in the ending to ensure a peaceful transition to bedtime.",
+      "calm_ending": 0.6,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8,
+      "latency_seconds": 3.11,
+      "llm_calls": 2,
+      "word_count": 427,
+      "body_preserved": true,
+      "story_file": "artifacts/ending_repair/stories/02_quest_rescue_7-8__a2__ending_repair.txt"
+    },
+    "draft0_file": "artifacts/ending_repair/stories/02_quest_rescue_7-8__a2__draft0.txt"
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "02_quest_rescue_7-8",
+    "attempt": 3,
+    "draft0": {
+      "passed": true,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 1.0,
+        "age_appropriateness": 0.8,
+        "calm_ending": 1.0,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "looks good",
+      "calm_ending": 1.0,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_failure": false,
+    "gen_latency_seconds": 5.5,
+    "word_count_draft0": 360,
+    "outcome": "passed_first_try"
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "05_overcome_challenge_7-8",
+    "attempt": 1,
+    "draft0": {
+      "passed": true,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.8,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 1.0,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "The engagement could be improved by adding more interactive elements or dialogue to keep the child's interest.",
+      "calm_ending": 1.0,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_failure": false,
+    "gen_latency_seconds": 6.18,
+    "word_count_draft0": 454,
+    "outcome": "passed_first_try"
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "05_overcome_challenge_7-8",
+    "attempt": 2,
+    "draft0": {
+      "passed": true,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 1.0,
+        "age_appropriateness": 0.8,
+        "calm_ending": 1.0,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "looks good",
+      "calm_ending": 1.0,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_failure": false,
+    "gen_latency_seconds": 5.74,
+    "word_count_draft0": 405,
+    "outcome": "passed_first_try"
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "05_overcome_challenge_7-8",
+    "attempt": 3,
+    "draft0": {
+      "passed": true,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.8,
+        "warmth": 1.0,
+        "age_appropriateness": 0.8,
+        "calm_ending": 1.0,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "Consider adding more action or dialogue to keep the child engaged throughout the story.",
+      "calm_ending": 1.0,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_failure": false,
+    "gen_latency_seconds": 5.21,
+    "word_count_draft0": 405,
+    "outcome": "passed_first_try"
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "08_quest_rescue_9-10",
+    "attempt": 1,
+    "draft0": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.8,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.4,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but the stormy adventure may leave lingering excitement.) | Consider toning down the excitement of the stormy adventure to ensure a truly calm ending for bedtime reading.",
+      "calm_ending": 0.4,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_failure": true,
+    "gen_latency_seconds": 7.88,
+    "word_count_draft0": 434,
+    "outcome": "paired_repair",
+    "full_regen": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 1.0,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but could be more explicitly soothing.) | Consider adding more explicit soothing language in the ending to ensure a calming effect for bedtime.",
+      "calm_ending": 0.6,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8,
+      "latency_seconds": 7.38,
+      "llm_calls": 2,
+      "word_count": 427,
+      "story_file": "artifacts/ending_repair/stories/08_quest_rescue_9-10__a1__full_regen.txt"
+    },
+    "ending_repair": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but could have been more explicitly peaceful.) | The ending could be enhanced by emphasizing the peaceful resolution and adding more soothing details to ensure a truly calming conclusion.",
+      "calm_ending": 0.6,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8,
+      "latency_seconds": 3.34,
+      "llm_calls": 2,
+      "word_count": 455,
+      "body_preserved": true,
+      "story_file": "artifacts/ending_repair/stories/08_quest_rescue_9-10__a1__ending_repair.txt"
+    },
+    "draft0_file": "artifacts/ending_repair/stories/08_quest_rescue_9-10__a1__draft0.txt"
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "08_quest_rescue_9-10",
+    "attempt": 2,
+    "draft0": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but could have been more explicitly peaceful.) | Consider adding more emphasis on the peaceful and comforting aspects of the ending to ensure a fully calming conclusion for bedtime.",
+      "calm_ending": 0.6,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_failure": true,
+    "gen_latency_seconds": 6.47,
+    "word_count_draft0": 471,
+    "outcome": "paired_repair",
+    "full_regen": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 0.8,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [
+        "missing element the child asked for: 'a cat'"
+      ],
+      "feedback": "missing element the child asked for: 'a cat' | weak dimensions: calm_ending (The ending is calm and reassuring, but could have been more explicitly peaceful.) | Consider adding more emphasis on the peaceful and calming resolution at the end to enhance the bedtime story experience.",
+      "calm_ending": 0.6,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8,
+      "latency_seconds": 6.3,
+      "llm_calls": 2,
+      "word_count": 449,
+      "story_file": "artifacts/ending_repair/stories/08_quest_rescue_9-10__a2__full_regen.txt"
+    },
+    "ending_repair": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 1.0,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but could have been more explicitly peaceful.) | Consider adding more emphasis on the peaceful and tranquil aspects of the ending to ensure a fully calming conclusion for bedtime reading.",
+      "calm_ending": 0.6,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8,
+      "latency_seconds": 3.58,
+      "llm_calls": 2,
+      "word_count": 488,
+      "body_preserved": true,
+      "story_file": "artifacts/ending_repair/stories/08_quest_rescue_9-10__a2__ending_repair.txt"
+    },
+    "draft0_file": "artifacts/ending_repair/stories/08_quest_rescue_9-10__a2__draft0.txt"
+  },
+  {
+    "kind": "live_paired",
+    "plan_id": "08_quest_rescue_9-10",
+    "attempt": 3,
+    "draft0": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.6,
+        "arc_coherence": 0.8,
+        "warmth": 0.8,
+        "age_appropriateness": 0.6,
+        "calm_ending": 0.4,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but the stormy rescue scene may leave lingering excitement or fear.) | Consider simplifying the vocabulary and shortening the story to better suit the attention span of younger children. Ensure the ending is even more calming to provide a peaceful conclusion.",
+      "calm_ending": 0.4,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8
+    },
+    "primarily_calm_failure": true,
+    "gen_latency_seconds": 7.92,
+    "word_count_draft0": 456,
+    "outcome": "paired_repair",
+    "full_regen": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.8,
+        "warmth": 1.0,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.6,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending is calm and reassuring, but could be more explicitly peaceful.) | Consider adding more details to the ending to create a stronger sense of peace and tranquility for a bedtime story.",
+      "calm_ending": 0.6,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.8,
+      "latency_seconds": 6.05,
+      "llm_calls": 2,
+      "word_count": 464,
+      "story_file": "artifacts/ending_repair/stories/08_quest_rescue_9-10__a3__full_regen.txt"
+    },
+    "ending_repair": {
+      "passed": false,
+      "scores": {
+        "engagement": 0.8,
+        "arc_coherence": 0.6,
+        "warmth": 1.0,
+        "age_appropriateness": 0.8,
+        "calm_ending": 0.4,
+        "preference_adherence": 1.0
+      },
+      "deterministic_failures": [],
+      "feedback": "weak dimensions: calm_ending (The ending could be more calming and reassuring, with less tension.) | The story could benefit from a more soothing and peaceful resolution to match the bedtime theme.",
+      "calm_ending": 0.4,
+      "preference_adherence": 1.0,
+      "arc_coherence": 0.6,
+      "latency_seconds": 3.48,
+      "llm_calls": 2,
+      "word_count": 489,
+      "body_preserved": true,
+      "story_file": "artifacts/ending_repair/stories/08_quest_rescue_9-10__a3__ending_repair.txt"
+    },
+    "draft0_file": "artifacts/ending_repair/stories/08_quest_rescue_9-10__a3__draft0.txt"
+  }
+]

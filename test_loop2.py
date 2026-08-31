@@ -152,6 +152,7 @@ def test_loop2_internal_judge_retry() -> None:
     mock_fns = {
         "story": mock_story,
         "judge_story": mock_judge_story,
+        "ending": mock_agents.make_mock_ending(),
         "feedback": mock_agents.make_mock_feedback(),
     }
     session = loop2.run(SAMPLE_PLAN, prefs, llm, respond=lambda draft: "yes!", mock_fns=mock_fns)
@@ -160,6 +161,104 @@ def test_loop2_internal_judge_retry() -> None:
     verdict_events = [e for e in session.trace if e.kind == "judge_story_verdict"]
     check("first verdict failed", verdict_events[0].payload["passed"], False)
     check("final verdict passed", verdict_events[-1].payload["passed"], True)
+    check_true(
+        "calm_ending-only failure used ending repair",
+        any(e.kind == "storyteller_ending_repair" for e in session.trace),
+    )
+
+
+def test_split_body_and_ending_preserves_paragraphs() -> None:
+    text = "Para one stays.\n\nPara two stays.\n\nPara three is the ending."
+    body, ending = storyteller.split_body_and_ending(text)
+    check("body keeps earlier paragraphs", body, "Para one stays.\n\nPara two stays.")
+    check("ending is last paragraph", ending, "Para three is the ending.")
+
+    long = "\n\n".join(f"P{i}." for i in range(1, 9))  # 8 paragraphs -> last 2 (~25%)
+    body, ending = storyteller.split_body_and_ending(long)
+    check("long-story body keeps first 6", body, "\n\n".join(f"P{i}." for i in range(1, 7)))
+    check("long-story ending is last 2", ending, "P7.\n\nP8.")
+
+
+def test_revise_ending_preserves_body() -> None:
+    llm = LLMClient(mock=True)
+    prefs = UserPreferences(initial_request="x", must_include=["a dragon"])
+    draft = StoryDraft(
+        text=(
+            "Once there was a fox who met a dragon in a meadow.\n\n"
+            "They played until the stars came out.\n\n"
+            "Then suddenly everything was loud and exciting again!"
+        ),
+        plan=SAMPLE_PLAN,
+        strategy=storyteller.STRATEGY_WHOLE_STORY,
+    )
+    repaired = storyteller.revise_ending(
+        draft, prefs, llm, judge_feedback="ending too exciting",
+        mock_fn=mock_agents.make_mock_ending(),
+    )
+    check("strategy tagged ending_repair", repaired.strategy, storyteller.STRATEGY_ENDING_REPAIR)
+    check_true("body preserved", repaired.text.startswith(
+        "Once there was a fox who met a dragon in a meadow.\n\nThey played until the stars came out."
+    ))
+    check_true("new calm ending present", "Goodnight" in repaired.text or "settled" in repaired.text)
+    check_true("old loud ending gone", "loud and exciting" not in repaired.text)
+
+
+def test_is_primarily_calm_ending_failure() -> None:
+    from models import JudgeResult
+
+    calm_only = JudgeResult(
+        passed=False,
+        scores={
+            "engagement": 0.8, "arc_coherence": 0.8, "warmth": 0.8,
+            "age_appropriateness": 1.0, "calm_ending": 0.4, "preference_adherence": 0.8,
+        },
+        reasons={},
+        deterministic_failures=[],
+        feedback="calm ending weak",
+    )
+    check_true("calm-only failure detected", judge.is_primarily_calm_ending_failure(calm_only))
+
+    also_pref = JudgeResult(
+        passed=False,
+        scores={
+            "engagement": 0.8, "arc_coherence": 0.8, "warmth": 0.8,
+            "age_appropriateness": 1.0, "calm_ending": 0.4, "preference_adherence": 0.4,
+        },
+        reasons={},
+        deterministic_failures=[],
+        feedback="calm and prefs weak",
+    )
+    check("pref failure blocks ending-only path", judge.is_primarily_calm_ending_failure(also_pref), False)
+
+    det = JudgeResult(
+        passed=False,
+        scores=dict(calm_only.scores),
+        reasons={},
+        deterministic_failures=["missing element the child asked for: 'a dragon'"],
+        feedback="missing dragon",
+    )
+    check("deterministic failure blocks ending-only path", judge.is_primarily_calm_ending_failure(det), False)
+
+
+def test_loop2_skips_ending_repair_when_broader_failure() -> None:
+    """If more than calm_ending fails, Loop 2 must full-regenerate, not patch."""
+    llm = LLMClient(mock=True)
+    prefs = UserPreferences(initial_request="x")
+    mock_fns = {
+        "story": mock_agents.make_mock_story(),
+        "judge_story": mock_agents.make_mock_judge_story(fail_first_n=1, fail_calm_ending_only=False),
+        "ending": mock_agents.make_mock_ending(),
+        "feedback": mock_agents.make_mock_feedback(),
+    }
+    session = loop2.run(SAMPLE_PLAN, prefs, llm, respond=lambda draft: "yes!", mock_fns=mock_fns)
+    check_true(
+        "broader failure did not use ending repair",
+        not any(e.kind == "storyteller_ending_repair" for e in session.trace),
+    )
+    check_true(
+        "full rewrite path still taken",
+        sum(1 for e in session.trace if e.kind == "storyteller_draft") >= 2,
+    )
 
 
 def test_end_to_end_loop1_then_loop2() -> None:

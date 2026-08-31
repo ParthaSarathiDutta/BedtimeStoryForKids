@@ -124,15 +124,40 @@ def make_mock_beat():
     return mock_beat
 
 
-def make_mock_judge_story(fail_first_n: int = 0):
+def make_mock_ending():
+    """Mock for storyteller.revise_ending: returns a calm closing paragraph."""
+    def mock_ending(prompt: str) -> str:
+        return (
+            "And so the excitement gently faded. Everyone settled under soft covers, "
+            "warm and safe, as the quiet night wrapped around them like a blanket. "
+            "Goodnight, little one."
+        )
+    return mock_ending
+
+
+def make_mock_judge_story(fail_first_n: int = 0, fail_calm_ending_only: bool = True):
     """Fails the first N calls, then passes. Matches judge.py's
     DIMENSIONS_STORY {score, reason} schema.
+
+    By default the fail case is a *primary* calm_ending failure (other
+    dimensions at or above their pass bars), so Loop 2's ending-repair path
+    can be exercised. Set fail_calm_ending_only=False for a broader failure.
     """
     calls = {"n": 0}
 
     def mock_judge_story(prompt: str) -> dict[str, Any]:
         calls["n"] += 1
         if calls["n"] <= fail_first_n:
+            if fail_calm_ending_only:
+                return {
+                    "engagement": {"score": 4, "reason": "Engaging enough."},
+                    "arc_coherence": {"score": 4, "reason": "Follows a clear arc."},
+                    "warmth": {"score": 4, "reason": "Warm overall."},
+                    "age_appropriateness": {"score": 5, "reason": "Appropriate."},
+                    "calm_ending": {"score": 2, "reason": "Ends abruptly, not calmly."},
+                    "preference_adherence": {"score": 4, "reason": "Requested elements are present."},
+                    "revision_feedback": "Make the ending wind down more gently.",
+                }
             return {
                 "engagement": {"score": 3, "reason": "Decent but not gripping."},
                 "arc_coherence": {"score": 3, "reason": "Follows a basic arc."},

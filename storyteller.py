@@ -11,6 +11,7 @@ an explicit A/B comparison against this baseline, not a parallel commitment.
 
 from __future__ import annotations
 
+import re
 from typing import Callable
 
 import config
@@ -171,3 +172,102 @@ def write_story_beat_by_beat(
         )
         parts.append(text.strip())
     return StoryDraft(text="\n\n".join(parts).strip(), plan=plan, strategy=STRATEGY_BEAT_BY_BEAT)
+
+
+# --------------------------------------------------------------------------
+# Targeted ending repair -- a specialized Storyteller *operation*, not a new
+# agent. Used when the Story Judge fails primarily on calm_ending: keep the
+# approved body, regenerate only the closing section. Measured against full
+# regeneration in experiment_ending_repair.py after the A/B finding that
+# beat-by-beat did not fix calm_ending on high-energy arcs.
+# --------------------------------------------------------------------------
+
+STRATEGY_ENDING_REPAIR = "ending_repair"
+
+ENDING_PROMPT_TEMPLATE = """You are the Storyteller, repairing ONLY the ending of an otherwise
+approved bedtime story for a child aged 5-10.
+
+APPROVED PLAN (a contract -- do not change it):
+- Concept: {concept}
+- Protagonist: {protagonist}
+- Setting: {setting}
+Elements the child explicitly asked for (already present in the body -- do
+not drop them from the ending either, if they belong there): {must_include}
+
+STORY SO FAR (PRESERVE THIS EXACTLY -- do not rewrite, summarize, or continue
+it with new plot; your output replaces only the closing section that follows):
+{body}
+
+JUDGE FEEDBACK ON THE PREVIOUS ENDING: {judge_feedback}
+
+PREVIOUS ENDING (being replaced):
+{old_ending}
+
+Rewrite ONLY the final section so the excitement winds down naturally into a
+safe, warm, sleepy conclusion. Be EXPLICITLY soothing: soft voices, stillness,
+warmth, and sleep -- not a brief "and then they slept" after lingering chaos.
+Do not introduce a new conflict, character, location, or plot event. Do not
+tease tomorrow's adventures. The new ending must flow directly from the last
+sentence of the preserved body above and leave the child calm, not wound up.
+
+Write ONLY the replacement ending prose -- no title, no headings, no notes,
+and do not repeat the preserved body.
+"""
+
+
+def split_body_and_ending(text: str) -> tuple[str, str]:
+    """Split a story into (preserved body, closing section to replace).
+
+    The A/B / ending-repair experiments showed the Judge often fails
+    calm_ending because of lingering excitement in the *last few*
+    paragraphs (peak escalation + a weak wind-down), not just the final
+    sentence. So the closing section is the last ~25% of paragraphs
+    (at least 2 when the story is long enough), not only the final one.
+    A single-block story falls back to keeping the first ~70% of words.
+    """
+    paras = [p.strip() for p in re.split(r"\n\s*\n", text.strip()) if p.strip()]
+    if len(paras) >= 4:
+        n_end = max(2, (len(paras) + 3) // 4)  # ~25%, at least 2
+        return "\n\n".join(paras[:-n_end]), "\n\n".join(paras[-n_end:])
+    if len(paras) >= 2:
+        return "\n\n".join(paras[:-1]), paras[-1]
+    words = text.split()
+    if len(words) < 20:
+        return "", text.strip()
+    cut = max(len(words) * 7 // 10, 1)
+    return " ".join(words[:cut]), " ".join(words[cut:])
+
+
+def revise_ending(
+    draft: StoryDraft,
+    preferences: UserPreferences,
+    llm: LLMClient,
+    judge_feedback: str,
+    mock_fn: Callable[[str], str] | None = None,
+) -> StoryDraft:
+    """Regenerate only the closing section of an existing draft.
+
+    Returns a new `StoryDraft` whose body is byte-identical to the prior
+    draft's body (up to the split point); only the ending differs. Strategy
+    is tagged `ending_repair` so traces can distinguish this path from a
+    full rewrite.
+    """
+    body, old_ending = split_body_and_ending(draft.text)
+    plan = draft.plan
+    prompt = ENDING_PROMPT_TEMPLATE.format(
+        concept=plan.concept,
+        protagonist=plan.protagonist,
+        setting=plan.setting,
+        must_include=", ".join(preferences.must_include) or "(nothing specific)",
+        body=body or "(the previous draft was too short to split; write a calm closing for the whole story)",
+        judge_feedback=judge_feedback,
+        old_ending=old_ending or "(none)",
+    )
+    new_ending = llm.complete_text(
+        prompt,
+        temperature=config.TEMPERATURE_STORY,
+        max_tokens=350,
+        mock_fn=mock_fn,
+    ).strip()
+    combined = f"{body}\n\n{new_ending}".strip() if body else new_ending
+    return StoryDraft(text=combined, plan=plan, strategy=STRATEGY_ENDING_REPAIR)
