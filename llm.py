@@ -124,3 +124,13 @@ def load_env() -> None:
         load_dotenv()
     except ImportError:
         pass
+    if os.getenv("OPENAI_API_KEY"):
+        return
+    try:
+        import streamlit as st
+
+        key = st.secrets.get("OPENAI_API_KEY")
+        if key:
+            os.environ["OPENAI_API_KEY"] = key
+    except Exception:
+        pass
