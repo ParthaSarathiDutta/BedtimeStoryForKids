@@ -1,0 +1,24 @@
+# Secrets — never commit the OpenAI key (see README)
+.env
+.env.*
+!.env.example
+*.key
+
+# Cloned story corpus (regenerate with index_corpus.py)
+corpus/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Annotation run caches
+.cache/
+*.partial.json
+
+# OS / editor
+.DS_Store
+.idea/
+*.swp
