@@ -285,9 +285,9 @@ def main() -> None:
         session: SessionContext = st.session_state.session
         plan = session.plan
         st.subheader("Here's an idea for your story")
-        st.write(plan.concept)
         if plan.child_notice:
-            st.write(plan.child_notice)
+            st.info(plan.child_notice)
+        st.write(plan.concept)
         if plan.open_question:
             st.write(plan.open_question)
 
