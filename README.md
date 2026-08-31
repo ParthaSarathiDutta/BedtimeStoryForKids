@@ -114,6 +114,8 @@ Pass/fail is decided in code from combined signals — the model scores and expl
 
 ## Engineering tradeoffs
 
+**Whole-story** generates the complete draft in one generation call per attempt. **Beat-by-beat** generates each arc beat sequentially, passing the story-so-far into the next call.
+
 Both strategies were implemented and compared on the same nine hand-built plans, two repeats each (**36 real API runs**). Details: [`artifacts/ab_experiment/report.md`](artifacts/ab_experiment/report.md).
 
 | Metric | Whole-story | Beat-by-beat |
@@ -211,7 +213,7 @@ Provide your own `OPENAI_API_KEY` in `.env`; it is never included in this reposi
 | `story_search.py` / `inspiration.py` | Metadata retrieval → inspiration cards |
 | `preference_extractor.py` / `feedback_normalizer.py` | Child input → structured preferences |
 | `schema.py` / `corpus_index.json` | Shared taxonomy + annotated index |
-| `assets/` | UI assets and product screenshot |
+| `assets/` | UI assets and product screenshots |
 | `REPORT.md` | Full system design write-up |
 
 ---
