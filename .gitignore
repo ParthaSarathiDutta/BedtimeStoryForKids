@@ -14,9 +14,13 @@ __pycache__/
 venv/
 *.egg-info/
 
-# Annotation run caches
-.cache/
-*.partial.json
+# Annotation caches, pilot selection, validation reports.
+# Regenerable; the annotation cache also makes runs resumable, which matters
+# across a few hundred failure-prone API calls.
+artifacts/
+
+# corpus_index.json IS the shipped deliverable and should be committed, but
+# only once built from real annotations -- never a --mock run.
 
 # OS / editor
 .DS_Store

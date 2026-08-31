@@ -26,8 +26,46 @@ Produce a per-story metadata index over the local [pb-source](https://github.com
 ## 2. Data source (context only)
 
 - Corpus: `pb-source/en/*.md` (Pratham Books / StoryWeaver, CC BY 4.0 / Public Domain)
-- Exact file count is **not assumed** — `index_corpus.py` establishes it from the actual local clone (approximately in the hundreds per the GitHub listing; do not design around a specific number)
 - Each file: `# Title`, `##`-delimited page sections, footer metadata block (`* License:`, `* Text:`, etc.)
+
+### 2.1 Measured properties
+
+Measured against `pb-source` commit `9ea530d`, rather than assumed:
+
+| Property | Value |
+|---|---|
+| English `.md` files | 396 |
+| Parsed stories | 395 (the 396th is the directory's own `README.md`) |
+| **Annotatable stories** | **388** (7 excluded, see below) |
+| Total words | 174,211 |
+| Median story length | 274 words |
+| Mean story length | 439 words |
+| Longest | 3,801 words of body text (`0039_a-walk-among-trees.md`) |
+| p90 / p95 / p99 length | 1,093 / 1,463 / 3,028 words |
+| Footer metadata coverage | 395 / 395 |
+| Licenses | 394 CC-BY, 1 Public Domain |
+
+### 2.2 Unannotatable entries
+
+Seven files parse successfully but carry too little text to annotate:
+
+| Entries | Condition | Examples |
+|---|---|---|
+| 4 | **No body text at all** — title and footer only | `0186` Secrets of the earth, `0210` Friendship in need is friend indeed, `0238` Holiday in Hathipur, `0249` Maya - Story of Us |
+| 3 | Stub, 4–17 words | `0166` Have You Seen These Birds? (10w), `0378` Have You Ever Travelled By? (17w), `0425` Seasons (4w) |
+
+These are excluded at a **20-word floor**, and the exclusions are recorded with reasons rather than silently dropped, so the shipped index accounts for every file in the corpus.
+
+The reason for excluding rather than annotating: a story with no text cannot support any of the ten fields, so the record would come back entirely `uncertain`. That is worse than absence — it pollutes the index and drags the `uncertain` rate up, which is one of the signals we rely on to diagnose the taxonomy. Garbage records would make a healthy taxonomy look broken.
+
+A further 24 stories fall between 20 and 59 words. These are **kept**: they are genuine picture-book texts where the illustrations carry much of the narrative, and they are exactly the kind of story the `5-6` reading band should retrieve.
+
+### 2.3 Consequences
+
+1. **`README.md` must be excluded** by filename. It is the only file in `/en` without an `# H1` title or a footer block, so it would otherwise become a malformed record.
+2. **Footer parsing is trivial, not fiddly.** Coverage is 100% and the format is consistent, so `source` parses deterministically with no fallback heuristics.
+3. **The context window is a non-issue at this scale** — see Section 5.7. Measured, not assumed, and it removes a stage the plan previously treated as mandatory.
+4. **The real corpus size is 388**, not the ~396 the GitHub listing suggests. Worth stating plainly, since the earlier drafts of this plan quoted the file count as though it were the story count.
 
 ---
 
@@ -345,15 +383,17 @@ Two consequences follow directly, and both are already handled above:
 - **The context window is a real constraint** (Section 5.7), not something we can defer.
 - **Judgment-heavy fields will be weaker.** Expect higher `uncertain` rates on `plot_shape`, `narrative_style`, and `tone`. This is why the self-consistency check (Section 5.3) matters and why confidence flags are collected at all.
 
-### 5.7 Long stories
+### 5.7 Long stories: a guard clause, not a pipeline stage
 
-Some corpus files are large enough that a single `gpt-3.5-turbo` pass cannot hold them. Since the model choice is fixed, this needs an explicit rule rather than a silent truncation.
+Earlier drafts treated context-window overflow as a mandatory design problem. **Measurement settled it: there is no overflow.**
 
-**Measure the length distribution first.** If only a handful of stories exceed the window, the special case stays small and cheap.
+The longest story in the corpus is 3,848 words, roughly 5,100 tokens, against `gpt-3.5-turbo`'s 16,385-token context. No story exceeds even 6,000 words, and the p95 is 1,463. Every story fits in a single pass with ample room for the prompt and response.
 
-For files that do exceed it, use **head-plus-tail sampling**: roughly the first 60% and last 20% of the text, with the elision explicitly marked in the prompt. Naive head-only truncation is actively harmful here because it removes exactly the evidence the ending-dependent fields need — `plot_shape` resolution, `energy_level`, and whether the story closes calm, which is the single most important property for bedtime.
+So head-plus-tail sampling is **demoted to a guard clause** that should never fire in practice. It is retained rather than deleted for one reason: `gpt-3.5-turbo` is a moving alias, and if it ever resolves to an older 4K-context variant, the four stories above 3,000 words would break. A guard is cheap insurance; a designed-in sampling stage would be unjustified complexity for a case that does not occur.
 
-Any record built from sampled text sets **`text_truncated: true`**, so validation can tell whether a weak label came from a weak model or from incomplete text.
+If the guard ever does fire, the behaviour is: keep roughly the first 60% and last 20% of the text with the elision explicitly marked, and set **`text_truncated: true`** on the record. Head-*only* truncation is specifically avoided, because it removes exactly the evidence the ending-dependent fields need — `plot_shape` resolution, `energy_level`, and whether the story closes calm, which is the single most important property for a bedtime story.
+
+`text_truncated` stays in the schema regardless, so validation can always distinguish a weak label caused by a weak model from one caused by incomplete text.
 
 ---
 
@@ -362,6 +402,7 @@ Any record built from sampled text sets **`text_truncated: true`**, so validatio
 | File | Purpose |
 |------|---------|
 | `schema.py` | Single source of truth: field definitions, controlled values, cardinality, escape values, the **synonym/normalization map**, and `bedtime_safe(flags, reading_band)`. Imported by the annotation scripts *and* by runtime child-request extraction |
+| `corpus_io.py` | Loads and parses story files: title, `##` page sections, footer metadata, word count; excludes `README.md`. Shared by `select_pilot.py`, `annotate_corpus.py`, and `index_corpus.py` so the parser exists exactly once |
 | `annotate_corpus.py` | Runs the LLM annotation call against a given list of story files; pilot-batch and full-batch modes; owns the resumable per-story cache and long-story head-plus-tail sampling |
 | `select_pilot.py` | Computes the observable proxies from Section 5.1 and selects the 20–25 pilot stories, recording the selection reason per story |
 | `validate_taxonomy.py` | Per-field distributions, `other`/`uncertain` rates, confidence distributions, self-consistency comparison, pairwise redundancy checks, and the drop-a-field retrieval discrimination test; prints checklist results |
@@ -369,6 +410,29 @@ Any record built from sampled text sets **`text_truncated: true`**, so validatio
 | `corpus_index.json` | Generated output — one record per story, per the structure in Section 4 |
 
 Normalization is deliberately **not** a separate `normalize_metadata.py`. It belongs in `schema.py` because it maps *into* the controlled vocabularies defined there, and because it must be callable from the runtime extraction path as well as the offline annotation path (Section 5.2). A standalone module would invite a second, divergent copy of the synonym map — which is exactly the failure that breaks the shared-vocabulary claim in Section 1.
+
+`story_search.py` is listed under the main project rather than here, but the ablation check in Section 5.4 needs a real scorer, so it is built alongside this pipeline and imported by `validate_taxonomy.py`.
+
+### 6.1 Running the pipeline
+
+```bash
+python index_corpus.py --clone            # clone corpus, report counts
+python select_pilot.py                    # choose 20-25 pilot stories by proxy
+
+python annotate_corpus.py --mode pilot                              # main pass
+python annotate_corpus.py --mode pilot --variant b --temperature 0.3  # consistency pass
+python validate_taxonomy.py                                          # diagnostics
+
+# decision point: lock v0 as v1, or revise once and re-run the above
+
+python annotate_corpus.py --mode full --workers 5
+python index_corpus.py                    # write corpus_index.json
+python validate_taxonomy.py --index corpus_index.json
+```
+
+Add `--mock` to any `annotate_corpus.py` call to exercise the pipeline with deterministic fake annotations and no API calls. Mock mode deliberately emits off-vocabulary casing and synonyms so the normalization stage is genuinely tested rather than bypassed.
+
+Note on the consistency pass: it runs **warmer than the main pass on purpose.** At temperature 0 the model is near-deterministic for an identical prompt, so agreement would come back at roughly 100% and the check would be vacuous. Running the second pass at 0.3 asks the more useful question — is this label stable, or was it a coin flip that greedy decoding happened to hide?
 
 ---
 
