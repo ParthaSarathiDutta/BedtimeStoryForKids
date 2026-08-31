@@ -291,8 +291,12 @@ def main() -> None:
         plan = session.plan
         st.subheader("Here's an idea for your story")
         if plan.child_notice:
+            st.markdown("### 🌙 I changed your story idea a little")
             st.info(plan.child_notice)
-        st.write(plan.concept)
+            st.markdown("### Here's your updated story idea")
+            st.write(plan.concept)
+        else:
+            st.write(plan.concept)
         if plan.open_question:
             st.write(plan.open_question)
 
