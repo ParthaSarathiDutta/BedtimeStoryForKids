@@ -28,6 +28,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 import schema
@@ -254,8 +255,35 @@ def _mock_response(prompt: str, salt: str = "") -> str:
 # --------------------------------------------------------------------------
 
 
+@lru_cache(maxsize=1)
+def annotation_fingerprint() -> str:
+    """Short hash of every input that determines an annotation's content.
+
+    Covers the prompt (template, vocabulary block, safety flags, JSON skeleton)
+    and the taxonomy including its normalization maps. A stale cache entry is
+    invisible until it corrupts the index -- editing the prompt and re-running
+    would silently mix old and new annotations, since the story ids and schema
+    version are unchanged. Making the filename depend on the inputs means a
+    changed prompt simply misses the cache, with no manual deletion step to
+    forget.
+
+    Built from a blank story so the hash is corpus-wide, not per-story.
+    """
+    probe = Story(
+        story_id="", title="", source_file="", license="",
+        author="", illustrator="", language="", text="",
+    )
+    material = build_prompt(probe, "") + schema.taxonomy_fingerprint()
+    return hashlib.sha256(material.encode()).hexdigest()[:10]
+
+
+def cache_suffix(variant: str = "a") -> str:
+    """Trailing part of a cache filename, shared with the validator."""
+    return f"_{schema.SCHEMA_VERSION}_{annotation_fingerprint()}_{variant}.json"
+
+
 def cache_path(story_id: str, variant: str = "a") -> Path:
-    return CACHE_DIR / f"{story_id}_{schema.SCHEMA_VERSION}_{variant}.json"
+    return CACHE_DIR / f"{story_id}{cache_suffix(variant)}"
 
 
 def annotate_story(
@@ -274,7 +302,10 @@ def annotate_story(
     path = cache_path(story.story_id, variant)
     if use_cache and path.exists():
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            cached = json.loads(path.read_text(encoding="utf-8"))
+            if not cached.get("annotation", {}).get("failed"):
+                return cached
+            # A cached failure is a transient error, not a result. Retry it.
         except json.JSONDecodeError:
             pass  # corrupt cache entry, re-annotate
 
@@ -357,6 +388,12 @@ def annotate_story(
                 "failed": True,
             },
         }
+        # Deliberately NOT cached. Every failure of this kind in the full run
+        # was an HTTP 429 from exceeding tokens-per-minute, which says nothing
+        # about the story. Caching it would make the next run treat the story as
+        # done and leave a record with no metadata in the index -- precisely the
+        # work that per-story resume exists to pick up.
+        return record
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")

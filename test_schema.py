@@ -207,6 +207,115 @@ def test_coerce_invalid() -> None:
           story_search.field_match(f, ["everyday"], ["other"]))
 
 
+def test_cache_fingerprint() -> None:
+    """A changed prompt or vocabulary must invalidate the cache by itself."""
+    import annotate_corpus
+
+    annotate_corpus.annotation_fingerprint.cache_clear()
+    base = annotate_corpus.annotation_fingerprint()
+    check("fingerprint is stable", annotate_corpus.annotation_fingerprint(), base)
+    check("fingerprint in path",
+          base in annotate_corpus.cache_path("0001", "a").name, True)
+    check("variant still separates",
+          annotate_corpus.cache_path("0001", "a")
+          != annotate_corpus.cache_path("0001", "b"), True)
+
+    def refingerprint():
+        annotate_corpus.annotation_fingerprint.cache_clear()
+        return annotate_corpus.annotation_fingerprint()
+
+    # 1. Prompt text change.
+    original_prompt = annotate_corpus.PROMPT_TEMPLATE
+    try:
+        annotate_corpus.PROMPT_TEMPLATE = original_prompt + "\nExtra instruction."
+        check("prompt edit invalidates", refingerprint() != base, True)
+    finally:
+        annotate_corpus.PROMPT_TEMPLATE = original_prompt
+    check("restoring prompt restores hash", refingerprint(), base)
+
+    # 2. Vocabulary change.
+    original_fields = schema.FIELDS
+    try:
+        tone = schema.FIELDS_BY_NAME["tone"]
+        widened = schema.Field(tone.name, tone.values + ("brand new",),
+                               tone.cardinality, tone.child_facing, tone.weight,
+                               tone.open_vocabulary)
+        schema.FIELDS = tuple(widened if f.name == "tone" else f
+                              for f in original_fields)
+        check("vocabulary edit invalidates", refingerprint() != base, True)
+    finally:
+        schema.FIELDS = original_fields
+    check("restoring vocabulary restores hash", refingerprint(), base)
+
+    # 3. Synonym-map change: invisible in the prompt, but the cache stores
+    #    post-normalization labels, so it still has to invalidate.
+    schema._INTEREST_SYNONYMS["zzz-probe"] = "animals"
+    try:
+        check("synonym edit invalidates", refingerprint() != base, True)
+    finally:
+        del schema._INTEREST_SYNONYMS["zzz-probe"]
+    check("restoring synonyms restores hash", refingerprint(), base)
+
+    # The validator must read exactly what the annotator wrote.
+    import validate_taxonomy
+    check("validator suffix matches writer",
+          annotate_corpus.cache_path("0001", "a").name.endswith(
+              validate_taxonomy.annotate_corpus.cache_suffix("a")), True)
+
+
+def test_failures_are_not_cached() -> None:
+    """A transient API failure must not be checkpointed as a finished story."""
+    import annotate_corpus
+    from corpus_io import Story
+
+    story = Story("9999", "Probe", "p.md", "CC-BY", "A", "I", "en",
+                  "Once there was a probe story about a cat.")
+    path = annotate_corpus.cache_path(story.story_id, "a")
+    path.unlink(missing_ok=True)
+
+    class AlwaysFails:
+        mock = False
+        calls = 0
+
+        def complete(self, prompt, salt=""):
+            AlwaysFails.calls += 1
+            raise RuntimeError("Error code: 429 - rate_limit_exceeded")
+
+    rec = annotate_corpus.annotate_story(story, AlwaysFails())
+    check("failure reported", rec["annotation"]["failed"], True)
+    check("failure not written to cache", path.exists(), False)
+
+    # A second run must actually retry rather than skip the story.
+    before = AlwaysFails.calls
+    annotate_corpus.annotate_story(story, AlwaysFails())
+    check("resume retries the failure", AlwaysFails.calls > before, True)
+
+    # A legacy failed entry already on disk must also be retried, not trusted.
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"search_metadata": {}, "annotation": {"failed": true}}')
+    before = AlwaysFails.calls
+    annotate_corpus.annotate_story(story, AlwaysFails())
+    check("stale failed entry ignored", AlwaysFails.calls > before, True)
+    path.unlink(missing_ok=True)
+
+    # A successful record still caches and still short-circuits.
+    class Succeeds:
+        mock = True
+        calls = 0
+
+        def complete(self, prompt, salt=""):
+            Succeeds.calls += 1
+            return annotate_corpus._mock_response(prompt, salt)
+
+    ok = annotate_corpus.annotate_story(story, Succeeds())
+    check("success has metadata", bool(ok["search_metadata"]), True)
+    check("success is cached", path.exists(), True)
+    before = Succeeds.calls
+    annotate_corpus.annotate_story(story, Succeeds())
+    check("success short-circuits", Succeeds.calls, before)
+    path.unlink(missing_ok=True)
+
+
 def test_prompt_mentions_new_rules() -> None:
     """The prompt is the fix for cross-field bleed, so assert it says so."""
     import annotate_corpus

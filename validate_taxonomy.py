@@ -18,6 +18,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+import annotate_corpus
 import schema
 import story_search
 
@@ -76,7 +77,13 @@ SAMPLE_REQUESTS: list[dict[str, Any]] = [
 
 
 def load_annotations(variant: str = "a") -> dict[str, dict]:
-    suffix = f"_{schema.SCHEMA_VERSION}_{variant}.json"
+    """Load only annotations produced by the current prompt and taxonomy.
+
+    Sharing `cache_suffix` with the annotator matters: validating a mix of old
+    and new annotations would produce diagnostics for a taxonomy that never
+    existed.
+    """
+    suffix = annotate_corpus.cache_suffix(variant)
     out: dict[str, dict] = {}
     for path in sorted(CACHE_DIR.glob(f"*{suffix}")):
         story_id = path.name[: -len(suffix)]

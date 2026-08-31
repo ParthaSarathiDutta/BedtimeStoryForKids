@@ -11,6 +11,7 @@ See METADATA_PREPARATION_PLAN.md sections 3 and 5.2.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -632,6 +633,27 @@ def normalize_confidence(conf: Any) -> tuple[dict[str, str | None], list[str]]:
             out[name] = None
             log.append(f"confidence.{name}: {level!r} unrecognized, set to null")
     return out, log
+
+
+def taxonomy_fingerprint() -> str:
+    """Hash of everything in this module that determines a stored label.
+
+    Includes the normalization maps, not just the vocabularies: the cache holds
+    post-normalization records, so changing a synonym makes cached labels stale
+    even though the model's raw output would be identical. Re-annotating the
+    corpus costs about $2 and two minutes, which is cheaper than reasoning about
+    which cached records a synonym edit did and did not affect.
+    """
+    material = repr([
+        SCHEMA_VERSION,
+        [(f.name, f.values, f.cardinality, f.open_vocabulary) for f in FIELDS],
+        ESCAPE_VALUES,
+        CONFIDENCE_LEVELS,
+        SAFETY_FLAGS,
+        sorted((k, sorted(v.items())) for k, v in _VALUE_SYNONYMS.items()),
+        sorted(_INTEREST_SYNONYMS.items()),
+    ])
+    return hashlib.sha256(material.encode()).hexdigest()
 
 
 def vocabulary_prompt_block() -> str:

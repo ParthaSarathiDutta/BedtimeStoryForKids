@@ -54,6 +54,9 @@ def build_index(corpus_dir: Path, variant: str = "a") -> dict:
 
     return {
         "schema_version": schema.SCHEMA_VERSION,
+        # Identifies the exact prompt and taxonomy that produced these labels,
+        # so an index can be traced back to its inputs after either changes.
+        "annotation_fingerprint": annotate_corpus.annotation_fingerprint(),
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "corpus": {
             "repo": corpus_io.CORPUS_REPO,

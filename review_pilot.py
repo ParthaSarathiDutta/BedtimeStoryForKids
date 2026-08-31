@@ -13,23 +13,27 @@ import argparse
 import json
 import pathlib
 
+import annotate_corpus
 import corpus_io
 import schema
 
 CACHE = pathlib.Path("artifacts/annotation_cache")
 
 
-def load(variant: str, version: str) -> dict[str, dict]:
-    return {p.name.split("_")[0]: json.loads(p.read_text())
-            for p in CACHE.glob(f"*_{version}_{variant}.json")}
+def load(variant: str) -> dict[str, dict]:
+    suffix = annotate_corpus.cache_suffix(variant)
+    return {p.name[: -len(suffix)]: json.loads(p.read_text())
+            for p in CACHE.glob(f"*{suffix}")}
 
 
-def render(version: str) -> str:
-    a, b = load("a", version), load("b", version)
+def render() -> str:
+    a, b = load("a"), load("b")
     stories = {s.story_id: s for s in corpus_io.load_stories()}
     out: list[str] = []
 
-    out.append(f"# Pilot annotation review ({version}, {len(a)} stories)\n")
+    out.append(f"# Pilot annotation review "
+               f"({schema.SCHEMA_VERSION}/{annotate_corpus.annotation_fingerprint()}, "
+               f"{len(a)} stories)\n")
     out.append("Pass A is the annotation of record (temperature 0.0). Pass B is "
                "the self-consistency probe (temperature 0.3); it exists only to "
                "measure label stability and is not part of the index.\n")
@@ -84,11 +88,10 @@ def render(version: str) -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--version", default=schema.SCHEMA_VERSION)
     ap.add_argument("--out", default="artifacts/pilot_review.md")
     args = ap.parse_args()
 
-    text = render(args.version)
+    text = render()
     path = pathlib.Path(args.out)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
