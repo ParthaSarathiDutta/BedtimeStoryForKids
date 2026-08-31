@@ -45,37 +45,34 @@ The Streamlit UI is a demo layer over the same Planner / Judge / Storyteller pip
 Three agents, one shared session-state object (`SessionContext`), and two bounded feedback loops. Full design rationale: [`REPORT.md`](REPORT.md).
 
 ```mermaid
-flowchart TD
-    Child(["Child"]) --> Extract["Preference extraction"]
-    Extract --> State["SessionContext / UserPreferences"]
+flowchart LR
+    Child(["Child / User"])
 
-    subgraph L1["Loop 1 — Plan alignment"]
-        State --> Planner["Planner"]
-        State --> JPlan["Judge — plan mode"]
-        Index["corpus_index.json"] --> Search["Corpus search"]
-        Search -->|"InspirationCards"| Planner
-        Planner --> JPlan
-        JPlan -->|fail| Planner
-        JPlan -->|pass| Review["Child reviews concept"]
-        Review -->|revise| Planner
-        Review -->|approve| Plan["Approved StoryPlan"]
-    end
+    Corpus["Story Corpus<br/>(retrieval source)"]
 
-    subgraph L2["Loop 2 — Story generation"]
-        Plan --> Teller["Storyteller"]
-        State --> Teller
-        State --> JStory["Judge — story mode"]
-        Teller --> JStory
-        JStory -->|pass| Out(["Child receives story"])
-        JStory -->|broader failure| Teller
-        JStory -->|calm-ending failure| RE["revise_ending"]
-        RE --> JStory
-    end
+    Planner["Agent 1<br/><b>Planner</b>"]
+    Judge["Agent 2<br/><b>Judge</b><br/>plan + story modes"]
+    Storyteller["Agent 3<br/><b>Storyteller</b>"]
+
+    Final(["Final Story"])
+
+    Child -->|"request / feedback"| Planner
+    Corpus -.->|"retrieved inspiration"| Planner
+
+    Planner -->|"StoryPlan"| Judge
+    Judge -->|"plan needs revision"| Planner
+    Judge -->|"plan passes"| Child
+
+    Child -->|"approves plan"| Storyteller
+
+    Storyteller -->|"story draft"| Judge
+    Judge -->|"story needs revision"| Storyteller
+    Judge -->|"story passes"| Final
 ```
 
-Plan mode and story mode use the same Judge implementation with different evaluation rubrics.
+**Three agents:** Planner, Judge, and Storyteller. The Judge is reused in two modes—first to evaluate the proposed story plan, then to evaluate the generated story. The story corpus is a retrieval source, not an agent; the child remains in the loop to approve or revise the plan before full generation.
 
-**Loop 1** aligns the story concept before spending full-generation calls. **Loop 2** generates and evaluates the full story only after plan approval.
+User preferences persist across both stages, while targeted ending repair is used when the primary story failure is the bedtime ending.
 
 ---
 
