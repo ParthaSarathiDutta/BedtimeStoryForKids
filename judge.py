@@ -17,7 +17,7 @@ from typing import Any, Callable
 import config
 import schema
 from llm import LLMClient
-from models import JudgeResult, StoryPlan, UserPreferences
+from models import JudgeResult, StoryDraft, StoryPlan, UserPreferences
 
 DIMENSIONS = ("engagement", "clarity", "warmth", "age_appropriateness")
 
@@ -180,6 +180,171 @@ def evaluate_plan(
     if det_failures:
         parts.append("; ".join(det_failures))
     weak = [f"{dim} ({reasons[dim]})" for dim in DIMENSIONS if raw_scores[dim] < PASS_SCORE]
+    if weak:
+        parts.append("weak dimensions: " + "; ".join(weak))
+    if llm_feedback and llm_feedback.lower() != "looks good":
+        parts.append(llm_feedback)
+    feedback = " | ".join(parts) if parts else "looks good"
+
+    return JudgeResult(
+        passed=passed,
+        scores=scores,
+        reasons=reasons,
+        deterministic_failures=det_failures,
+        feedback=feedback,
+    )
+
+
+# --------------------------------------------------------------------------
+# Story-level judge (REPORT.md sec 2: Judge's second mode, `evaluate_story`)
+# --------------------------------------------------------------------------
+
+DIMENSIONS_STORY = (
+    "engagement", "arc_coherence", "warmth", "age_appropriateness",
+    "calm_ending", "preference_adherence",
+)
+
+# calm_ending and preference_adherence get a higher bar than the others: an
+# approved plan is a contract (per the sequencing discussion before Loop 2 was
+# built), and a story that quietly drops something the child asked for, or
+# that ends wound-up, has failed regardless of how good the rest of it is --
+# "acceptable but weak" is not good enough for either of those two.
+_STRICT_DIMENSIONS_STORY = ("calm_ending", "preference_adherence")
+_STRICT_PASS_SCORE = 4
+
+_META_ARTIFACTS = ("title:", "beat 1", "beat 2:", "```")
+
+STORY_PROMPT_TEMPLATE = """You are the Judge reviewing a complete bedtime STORY (not just a concept)
+for a child aged 5-10. Score honestly -- a low score is fine when deserved.
+
+STORY:
+{text}
+
+APPROVED PLAN this story was supposed to deliver on (a contract, not a suggestion):
+- Concept: {concept}
+- Protagonist: {protagonist}
+- Setting: {setting}
+
+WHAT THE CHILD EXPLICITLY ASKED FOR: {must_include}
+
+Score EACH dimension separately on this 1-5 scale, with ONE short reason each.
+Do not give every dimension the same score unless they genuinely deserve it:
+  1 = clear failure   2 = substantial problem   3 = acceptable but weak
+  4 = strong          5 = excellent
+
+- engagement: would a child this age stay interested throughout?
+- arc_coherence: does the story follow a coherent beginning-middle-end, without wandering or contradicting itself?
+- warmth: is the overall tone gentle and appropriate for reading at bedtime?
+- age_appropriateness: is vocabulary and content suitable for ages 5-10?
+- calm_ending: does the LAST part of the story specifically wind down into
+  something calm and reassuring, with no lingering excitement, fear, or
+  tension? This is the single most important dimension for a bedtime story.
+- preference_adherence: does the story keep every element the child asked
+  for, without silently dropping or changing anything from the approved plan?
+
+Reply with ONLY a JSON object:
+{{
+  "engagement": {{"score": 1-5, "reason": "one short sentence"}},
+  "arc_coherence": {{"score": 1-5, "reason": "one short sentence"}},
+  "warmth": {{"score": 1-5, "reason": "one short sentence"}},
+  "age_appropriateness": {{"score": 1-5, "reason": "one short sentence"}},
+  "calm_ending": {{"score": 1-5, "reason": "one short sentence"}},
+  "preference_adherence": {{"score": 1-5, "reason": "one short sentence"}},
+  "revision_feedback": "one or two sentences of concrete guidance for whatever scored too low, or 'looks good'"
+}}
+"""
+
+
+def _deterministic_story_checks(draft: StoryDraft, preferences: UserPreferences) -> list[str]:
+    """Narrow on purpose, same principle as the plan Judge: code checks what
+    code can measure reliably (length, presence, leaked formatting); whether
+    the ending *reads* as calm is exactly the kind of semantic judgment left
+    to the LLM dimension above, not asserted here.
+    """
+    failures: list[str] = []
+    text_lower = draft.text.lower()
+
+    for item in preferences.must_include:
+        core = _core_phrase(item)
+        if core and not _mentions(core, text_lower):
+            failures.append(f"missing element the child asked for: {item!r}")
+
+    min_words, max_words = config.word_count_band(draft.plan.metadata.get("reading_band"))
+    word_count = len(draft.text.split())
+    # Generous tolerance: gpt-3.5-turbo does not hit an exact word count, and
+    # being roughly in the right neighborhood is what matters here, not
+    # precision to the word.
+    if word_count < min_words * 0.5:
+        failures.append(f"story too short: {word_count} words (target {min_words}-{max_words})")
+    elif word_count > max_words * 1.8:
+        failures.append(f"story too long: {word_count} words (target {min_words}-{max_words})")
+
+    for artifact in _META_ARTIFACTS:
+        if artifact in text_lower:
+            failures.append(f"leaked meta-text artifact: {artifact!r}")
+
+    return failures
+
+
+def _validate_story(parsed: dict[str, Any]) -> list[str]:
+    problems: list[str] = []
+    for dim in DIMENSIONS_STORY:
+        entry = parsed.get(dim)
+        if not isinstance(entry, dict):
+            problems.append(f"{dim}: not an object with score/reason")
+            continue
+        score = entry.get("score")
+        if not isinstance(score, (int, float)) or not (1 <= score <= _MAX_SCORE):
+            problems.append(f"{dim}.score: {score!r} not an integer in [1, {_MAX_SCORE}]")
+        if not isinstance(entry.get("reason"), str) or not entry["reason"].strip():
+            problems.append(f"{dim}.reason: missing or empty")
+    return problems
+
+
+def build_story_prompt(draft: StoryDraft, preferences: UserPreferences) -> str:
+    plan = draft.plan
+    return STORY_PROMPT_TEMPLATE.format(
+        text=draft.text,
+        concept=plan.concept,
+        protagonist=plan.protagonist,
+        setting=plan.setting,
+        must_include=", ".join(preferences.must_include) or "(nothing specific)",
+    )
+
+
+def evaluate_story(
+    draft: StoryDraft,
+    preferences: UserPreferences,
+    llm: LLMClient,
+    mock_fn: Callable[[str], dict[str, Any]] | None = None,
+) -> JudgeResult:
+    det_failures = _deterministic_story_checks(draft, preferences)
+    prompt = build_story_prompt(draft, preferences)
+    parsed = llm.complete_json(
+        prompt,
+        temperature=config.TEMPERATURE_JUDGE,
+        max_tokens=500,
+        validate=_validate_story,
+        mock_fn=mock_fn,
+    )
+    raw_scores = {dim: int(parsed[dim]["score"]) for dim in DIMENSIONS_STORY}
+    reasons = {dim: str(parsed[dim]["reason"]).strip() for dim in DIMENSIONS_STORY}
+    scores = {dim: raw / _MAX_SCORE for dim, raw in raw_scores.items()}
+
+    llm_feedback = str(parsed.get("revision_feedback", "")).strip()
+    llm_passed = all(
+        raw_scores[dim] >= (_STRICT_PASS_SCORE if dim in _STRICT_DIMENSIONS_STORY else PASS_SCORE)
+        for dim in DIMENSIONS_STORY
+    )
+    passed = llm_passed and not det_failures
+
+    parts = []
+    if det_failures:
+        parts.append("; ".join(det_failures))
+    weak = [
+        f"{dim} ({reasons[dim]})" for dim in DIMENSIONS_STORY
+        if raw_scores[dim] < (_STRICT_PASS_SCORE if dim in _STRICT_DIMENSIONS_STORY else PASS_SCORE)
+    ]
     if weak:
         parts.append("weak dimensions: " + "; ".join(weak))
     if llm_feedback and llm_feedback.lower() != "looks good":

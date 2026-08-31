@@ -94,10 +94,28 @@ class LLMClient:
 
         raise LLMError(f"no usable response after {max_attempts} attempts: {errors}")
 
-    def complete_text(self, prompt: str, *, temperature: float, max_tokens: int = 700) -> str:
+    def complete_text(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_tokens: int = 900,
+        max_attempts: int = config.MAX_ATTEMPTS,
+        mock_fn: Callable[[str], str] | None = None,
+    ) -> str:
         if self.mock:
-            raise LLMError("mock client has no default text response")
-        return self._raw_complete(prompt, temperature, max_tokens, json_mode=False)
+            if mock_fn is None:
+                raise LLMError("mock client requires a mock_fn for this call")
+            return mock_fn(prompt)
+        errors: list[str] = []
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return self._raw_complete(prompt, temperature, max_tokens, json_mode=False)
+            except Exception as exc:  # transient API failure
+                errors.append(f"attempt {attempt}: api error: {exc}")
+                if attempt < max_attempts:
+                    time.sleep(2 ** attempt)
+        raise LLMError(f"no usable response after {max_attempts} attempts: {errors}")
 
 
 def load_env() -> None:

@@ -84,6 +84,59 @@ def make_mock_judge(fail_first_n: int = 0):
     return mock_judge
 
 
+def make_mock_story():
+    """Concept-derived mock story text, always mentioning every must_include
+    phrase found in the prompt (same trick as make_mock_plan), so the
+    deterministic Story Judge check has something real to verify.
+    """
+    def mock_story(prompt: str) -> str:
+        elements_line = re.search(r"MUST appear in the story: (.*)", prompt)
+        elements = elements_line.group(1).strip() if elements_line else ""
+        elements = "" if elements in ("", "(nothing specific)") else elements
+        body = (
+            "Once there was a small adventure in a cozy corner of the world. "
+            "Along the way, there was time for wonder and a little bit of fun. " * 20
+        )
+        if elements:
+            body += f" There was also {elements}, right where they belonged. "
+        body += "As the moon rose, everyone settled down, safe and warm, and drifted off to sleep."
+        return body
+
+    return mock_story
+
+
+def make_mock_judge_story(fail_first_n: int = 0):
+    """Fails the first N calls, then passes. Matches judge.py's
+    DIMENSIONS_STORY {score, reason} schema.
+    """
+    calls = {"n": 0}
+
+    def mock_judge_story(prompt: str) -> dict[str, Any]:
+        calls["n"] += 1
+        if calls["n"] <= fail_first_n:
+            return {
+                "engagement": {"score": 3, "reason": "Decent but not gripping."},
+                "arc_coherence": {"score": 3, "reason": "Follows a basic arc."},
+                "warmth": {"score": 3, "reason": "Fine."},
+                "age_appropriateness": {"score": 5, "reason": "Appropriate."},
+                "calm_ending": {"score": 2, "reason": "Ends abruptly, not calmly."},
+                "preference_adherence": {"score": 3, "reason": "Mostly there."},
+                "revision_feedback": "Make the ending wind down more gently.",
+            }
+        return {
+            "engagement": {"score": 5, "reason": "Engaging throughout."},
+            "arc_coherence": {"score": 5, "reason": "Clear beginning, middle, end."},
+            "warmth": {"score": 5, "reason": "Gentle and cozy."},
+            "age_appropriateness": {"score": 5, "reason": "Well suited to the age range."},
+            "calm_ending": {"score": 5, "reason": "Winds down peacefully into sleep."},
+            "preference_adherence": {"score": 5, "reason": "Everything requested is present."},
+            "revision_feedback": "looks good",
+        }
+
+    mock_judge_story.calls = calls
+    return mock_judge_story
+
+
 def make_mock_feedback(responses: dict[str, dict[str, Any]] | None = None):
     """Maps a raw child response string to a fixed interpretation.
 

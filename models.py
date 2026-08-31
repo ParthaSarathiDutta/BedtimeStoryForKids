@@ -105,6 +105,19 @@ class StoryPlan:
 
 
 @dataclass
+class StoryDraft:
+    """Full prose for an approved plan (REPORT.md sec 2, sec 3).
+
+    Carries the plan it was written from, not just its own text: the Story
+    Judge treats the approved plan as a contract (per the sequencing
+    discussion before Loop 2 was built) and needs it to check adherence.
+    """
+    text: str
+    plan: StoryPlan
+    strategy: str  # e.g. "whole_story"; see storyteller.py
+
+
+@dataclass
 class JudgeResult:
     """Verdict from the Judge on a plan (or, later, a story draft).
 
@@ -141,6 +154,7 @@ class SessionContext:
     """
     preferences: UserPreferences
     plan: StoryPlan | None = None
+    story: StoryDraft | None = None
     trace: list[TraceEvent] = field(default_factory=list)
 
     def log(self, kind: str, **payload: Any) -> None:
