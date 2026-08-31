@@ -90,8 +90,16 @@ FIELDS: tuple[Field, ...] = (
     ),
     Field(
         "plot_shape",
+        # `question→explanation` added in v1. The annotator reached for
+        # "question-and-answer" as a plot shape three times across two stories
+        # and both passes, even though that value belongs to narrative_style.
+        # It was right that the shape exists and wrong about where to put it:
+        # a story that poses a question, speculates, then resolves it has a
+        # genuine arc, distinct from how it happens to be narrated. This is
+        # also the "question → imagination → explanation" arc profile from the
+        # original design, which never made it into this vocabulary.
         ("problem→solution", "quest/rescue", "exploration", "discovery/learning",
-         "overcome challenge", "silly/cumulative events"),
+         "overcome challenge", "silly/cumulative events", "question→explanation"),
         "single", False, 1.0,
     ),
     Field(
@@ -285,11 +293,25 @@ _VALUE_SYNONYMS: dict[str, dict[str, str]] = {
         "problem_solution": "problem→solution",
         "quest": "quest/rescue", "rescue": "quest/rescue",
         "quest or rescue": "quest/rescue", "quest_rescue": "quest/rescue",
+        # Per-field map, so these only rewrite plot_shape. The identical string
+        # stays a legitimate narrative_style value and is untouched there.
+        "question-and-answer": "question→explanation",
+        "question and answer": "question→explanation",
+        "question-answer": "question→explanation",
+        "question→imagination→explanation": "question→explanation",
+        "question → imagination → explanation": "question→explanation",
+        "question-explanation": "question→explanation",
+        "question->explanation": "question→explanation",
+        "question to explanation": "question→explanation",
+        "q-and-a": "question→explanation", "q&a": "question→explanation",
         "exploration/encounters": "exploration", "encounters": "exploration",
         "journey": "exploration", "wandering": "exploration",
         "discovery": "discovery/learning", "learning": "discovery/learning",
-        "question and answer": "discovery/learning",
-        "question→imagination→explanation": "discovery/learning",
+        # Removed in v1: these used to fold question-shaped plots into
+        # discovery/learning because no better value existed. That silently
+        # relabelled a distinct arc as a different one, and since duplicate
+        # keys later in this literal win, it also overrode the correct mapping
+        # above. Now that question→explanation exists, the fold is wrong.
         "overcome a challenge": "overcome challenge",
         "overcoming challenge": "overcome challenge",
         "challenge": "overcome challenge",

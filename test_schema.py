@@ -40,6 +40,34 @@ def test_v1_setting() -> None:
               "unspecified/abstract")
 
 
+def test_v1_question_plot_shape() -> None:
+    """The shape the annotator kept asking for, now in the right field."""
+    check("value exists",
+          "question→explanation" in schema.FIELDS_BY_NAME["plot_shape"].values, True)
+    for raw in ("question-and-answer", "Question and Answer", "q&a",
+                "question->explanation", "question → imagination → explanation"):
+        check(f"plot_shape {raw!r}", schema.normalize_value("plot_shape", raw),
+              "question→explanation")
+
+    # The same string must remain a narrative_style value, unrewritten.
+    check("narrative_style unaffected",
+          schema.normalize_value("narrative_style", "question-and-answer"),
+          "question-and-answer")
+    check("narrative_style value intact",
+          "question-and-answer" in schema.FIELDS_BY_NAME["narrative_style"].values, True)
+
+    # A record using both, in their correct fields, must validate.
+    md = {f.name: (["other"] if f.cardinality == "multi" else "other")
+          for f in schema.FIELDS}
+    md["plot_shape"] = "question→explanation"
+    md["narrative_style"] = ["question-and-answer"]
+    check("both fields valid together", schema.validate_metadata(md), [])
+
+    # No longer coerced away, since it is now a real value.
+    fixed, _ = schema.coerce_invalid(dict(md))
+    check("survives coercion", fixed["plot_shape"], "question→explanation")
+
+
 def test_v1_interest_synonyms() -> None:
     check("education", schema.normalize_value("interest_tags", "education"), "learning")
     check("educational", schema.normalize_value("interest_tags", "Educational"), "learning")
