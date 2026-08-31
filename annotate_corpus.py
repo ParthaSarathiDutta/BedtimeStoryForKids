@@ -65,18 +65,37 @@ Classify the story using ONLY the vocabularies below. Copy values exactly as wri
 
 {vocabulary}
 
+CRITICAL RULE: each field has its own separate vocabulary. Never put a value
+from one field into another field. For example "funny" is a tone, so it must
+never appear in story_type; "question-and-answer" is a narrative_style, so it
+must never appear in plot_shape. If a field's own list has nothing suitable,
+use its escape values below.
+
 Escape values: every field above also accepts "other" and "uncertain".
 Use "other" only if no listed category reasonably fits the story.
 Use "uncertain" only if the text does not let you choose confidently.
 Do not use them as a convenient default.
 
+plot_shape needs particular care. Do NOT default to "problem→solution".
+Choose it only when the story contains an identifiable problem AND a
+resolution of that problem. A story that simply describes events, wanders
+from encounter to encounter, explains something, or is just banter between
+characters does NOT have a problem→solution shape. If none of the listed
+plot shapes genuinely fits the story, answer "other" rather than inventing
+a structure the story does not have.
+
 Also provide:
 - summary: 2-3 sentences describing what happens. Plain description, no praise.
 - safety.flags: any of {safety_flags} that genuinely apply, else an empty list.
-  Judge the story's content, not its suitability. A tense moment in a folktale
-  is a "threat" flag even if the story is gentle overall.
+  Judge what actually happens in the story, not the vocabulary it uses. Words
+  like "scary", "shark", or "screamed" inside a joke, a game, or pretend play
+  are NOT flags. Reserve flags for content a parent would genuinely hesitate
+  to read at bedtime, such as a character actually dying or being harmed.
 - confidence: "high", "medium", or "low" for EVERY one of the ten fields,
-  reflecting how well the text supports your choice.
+  reflecting how well the text supports your choice. These three words are the
+  ONLY permitted confidence values. Note that "uncertain" is a metadata value
+  for the fields above and is NEVER a confidence level -- if you are unsure,
+  the confidence level is "low".
 
 Reply with ONLY a JSON object in exactly this shape, no prose before or after:
 
@@ -287,15 +306,22 @@ def annotate_story(
         )
         norm_log += flag_log
 
+        # Confidence is sanitized, never validated: it must not cost a retry or
+        # fail a record, since the pilot showed the values carry almost no
+        # information. Only search_metadata gates acceptance.
+        conf, conf_log = schema.normalize_confidence(parsed.get("confidence"))
+        norm_log += conf_log
+
         problems = schema.validate_metadata(md)
-        conf_raw = parsed.get("confidence", {})
-        conf = {k: str(v).strip().lower() for k, v in conf_raw.items()} if isinstance(conf_raw, dict) else {}
-        problems += schema.validate_confidence(conf)
 
         if problems:
             errors.append(f"attempt {attempt}: " + "; ".join(problems[:4]))
             if attempt < MAX_ATTEMPTS:
                 continue
+            # Retries exhausted. Repair rather than persist off-vocabulary
+            # values, which would silently kill the field for this story.
+            md, coerce_log = schema.coerce_invalid(md)
+            norm_log += coerce_log
 
         record = {
             "search_metadata": md,

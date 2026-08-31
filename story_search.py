@@ -72,9 +72,11 @@ def score_story(
             per_field[field.name] = round(field.weight * match, 3)
         total += field.weight * match
 
+    # Safety flags down-weight but never exclude. gpt-3.5-turbo proved
+    # unreliable at this classification in the pilot, and a false positive
+    # should cost a story some ranking rather than its existence. The
+    # storytelling Judge is the real safety gate, on generated output.
     penalty = schema.retrieval_penalty(record.get("safety", {}).get("flags", []))
-    if penalty is None:
-        return -1.0, per_field  # hard-excluded
     return round(total * penalty, 3), per_field
 
 
@@ -84,12 +86,13 @@ def search_stories(
     top_k: int = 3,
     skip_fields: Iterable[str] = (),
 ) -> list[Hit]:
-    """Rank the corpus for a request. Hard-excluded stories are dropped."""
+    """Rank the corpus for a request.
+
+    No story is excluded; every record is ranked. Safety only affects position.
+    """
     hits: list[Hit] = []
     for record in index:
         score, per_field = score_story(preferences, record, skip_fields)
-        if score < 0:
-            continue
         source = record.get("source", {})
         hits.append(Hit(
             story_id=str(source.get("id", "?")),

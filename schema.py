@@ -15,7 +15,12 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
-SCHEMA_VERSION = "v0"
+# v1 is the single revision the plan allows after the pilot. The pilot exposed
+# concrete failures (safety flags unreliable in both directions, `setting`
+# lacking a value for stories with no physical place, cross-field vocabulary
+# bleed), so this is that revision. Bumping the version also invalidates the v0
+# annotation cache, which is what we want -- v0 labels are not comparable.
+SCHEMA_VERSION = "v1"
 
 Cardinality = Literal["single", "multi"]
 
@@ -62,8 +67,13 @@ FIELDS: tuple[Field, ...] = (
     ),
     Field(
         "setting",
+        # `unspecified/abstract` added in v1. The pilot put 22% of stories in
+        # `other` for one consistent reason: abstract and dialogue-driven
+        # children's stories often have no physical place at all (two shapes
+        # bantering, siblings talking, a 28-word dream image). That is a real
+        # category in children's literature, not a gap in the place list.
         ("home/school", "city/village", "nature/farm/jungle", "travel",
-         "fantasy/space", "historical/cultural"),
+         "fantasy/space", "historical/cultural", "unspecified/abstract"),
         "multi", True, 1.5,
     ),
     Field("interest_tags", (), "multi", True, 3.0, open_vocabulary=True),
@@ -115,17 +125,31 @@ SCORED_FIELDS: tuple[Field, ...] = tuple(f for f in FIELDS if f.weight > 0)
 
 SAFETY_FLAGS = ("violence", "intense_fear", "death", "threat", "disturbing_imagery")
 
-# Retrieval effect. Retrieved stories are Planner inspiration and are never
-# narrated to the child, so the bar for retrieval is lower than for output.
-# Excluding everything flagged would discard legitimate structure, since most
-# quest/rescue arcs require a threat.
-HARD_EXCLUDE_FLAGS = frozenset({"violence", "disturbing_imagery"})
-DOWNWEIGHT_FLAGS = frozenset({"intense_fear", "death", "threat"})
+# v1: NO FLAG HARD-EXCLUDES A STORY.
+#
+# The pilot showed gpt-3.5-turbo is unreliable at this classification in both
+# directions. It flagged "Spot and Spike" -- a circle and a spiky shape joking
+# about chicken pox -- as `disturbing_imagery`, apparently keying on the words
+# "scary", "shark", and "screamed" rather than understanding the joke. It also
+# missed `death` entirely in "My brother", where the mother dies and the
+# children end up in child labour.
+#
+# Since a single unreliable flag previously removed a story from retrieval
+# permanently, flags are now soft signals only. Retrieved stories are Planner
+# inspiration and are never narrated to the child, so nothing here reaches a
+# child directly. The storytelling Judge is the real safety gate, applied to
+# generated output where it actually matters.
+SEVERE_FLAGS = frozenset({"violence", "disturbing_imagery"})
+MILD_FLAGS = frozenset({"intense_fear", "death", "threat"})
 
-# Policy, deliberately in code rather than in the record. A stored
-# `bedtime_safe` boolean would silently commit to one age band -- a story in
-# which a grandparent dies may be fine at 9-10 and not at 5-6 -- and revising
-# policy should not require re-annotating the corpus through the API.
+_SEVERE_PENALTY = 0.6
+_MILD_PENALTY = 0.8
+
+# Advisory only. NOT applied during retrieval -- kept because it expresses the
+# age-dependent policy cleanly and the Judge may consult it later. Policy stays
+# in code rather than in the record so revising it never requires re-annotating
+# the corpus: a story in which a grandparent dies may be fine at 9-10 and not
+# at 5-6, and one stored boolean cannot be right for both.
 _FLAGS_TOLERATED_BY_BAND: dict[str, frozenset[str]] = {
     "5-6": frozenset(),
     "7-8": frozenset({"threat"}),
@@ -134,27 +158,31 @@ _FLAGS_TOLERATED_BY_BAND: dict[str, frozenset[str]] = {
 
 
 def bedtime_safe(flags: list[str], reading_band: str) -> bool:
-    """Whether a story is suitable to narrate at bedtime for a reading band.
+    """Advisory bedtime suitability for a reading band.
 
-    Derived rather than stored. `flags` are observations about the text;
-    this function is the policy applied to them.
+    Derived rather than stored. Deliberately NOT consulted by
+    `story_search`; see the note above. Treat as a hint, not a gate.
     """
     present = {f.strip().lower() for f in flags if f and f.strip()}
-    if present & HARD_EXCLUDE_FLAGS:
+    if present & SEVERE_FLAGS:
         return False
     tolerated = _FLAGS_TOLERATED_BY_BAND.get(reading_band, frozenset())
     return present <= tolerated
 
 
-def retrieval_penalty(flags: list[str]) -> float | None:
+def retrieval_penalty(flags: list[str]) -> float:
     """Scoring multiplier for a story's safety flags.
 
-    Returns None if the story must be excluded from retrieval entirely.
+    Always returns a positive multiplier: a flag can lower a story's rank but
+    can never remove it from consideration. A false positive should cost a
+    story some ranking, not its existence.
     """
     present = {f.strip().lower() for f in flags if f and f.strip()}
-    if present & HARD_EXCLUDE_FLAGS:
-        return None
-    return 0.5 if present & DOWNWEIGHT_FLAGS else 1.0
+    if present & SEVERE_FLAGS:
+        return _SEVERE_PENALTY
+    if present & MILD_FLAGS:
+        return _MILD_PENALTY
+    return 1.0
 
 
 # --------------------------------------------------------------------------
@@ -216,6 +244,12 @@ _VALUE_SYNONYMS: dict[str, dict[str, str]] = {
         "imaginary world": "fantasy/space",
         "historical": "historical/cultural", "cultural": "historical/cultural",
         "festival": "historical/cultural", "mythological": "historical/cultural",
+        # v1: catch the ways the model phrases "there is no setting".
+        "abstract": "unspecified/abstract", "unspecified": "unspecified/abstract",
+        "none": "unspecified/abstract", "no setting": "unspecified/abstract",
+        "not specified": "unspecified/abstract", "n/a": "unspecified/abstract",
+        "undefined": "unspecified/abstract", "imaginary": "unspecified/abstract",
+        "dream": "unspecified/abstract", "dreamworld": "unspecified/abstract",
     },
     "tone": {
         "warm": "warm/cozy", "cozy": "warm/cozy", "cosy": "warm/cozy",
@@ -327,6 +361,14 @@ _INTEREST_SYNONYMS: dict[str, str] = {
     "night time": "night", "nighttime": "night", "moon": "night",
     "stars": "night", "sleep": "night", "bedtime": "night",
     "brave": "courage", "bravery": "courage",
+    # v1 additions: synonym clusters observed in the pilot's 35 distinct tags.
+    # Folded only where the pair is genuinely interchangeable; near-neighbours
+    # like curiosity/learning and body/senses are left distinct on purpose.
+    "education": "learning", "educational": "learning", "studying": "learning",
+    "funny": "humor", "humour": "humor", "comedy": "humor", "jokes": "humor",
+    "uniqueness": "individuality", "self-acceptance": "individuality",
+    "self acceptance": "individuality", "being yourself": "individuality",
+    "creativity": "imagination", "imaginative": "imagination",
 }
 
 _WS = re.compile(r"\s+")
@@ -493,17 +535,81 @@ def validate_metadata(md: dict[str, Any]) -> list[str]:
     return errors
 
 
-def validate_confidence(conf: Any) -> list[str]:
-    errors: list[str] = []
-    if not isinstance(conf, dict):
-        return ["confidence: not an object"]
+def coerce_invalid(md: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Last-resort repair: replace off-vocabulary values with `other`.
+
+    Applied only after retries are exhausted. The pilot showed the model
+    occasionally insists on a value from another field's vocabulary -- v1 saw
+    `story_type: 'funny'` and `plot_shape: 'question-and-answer'` survive all
+    three attempts despite an explicit prompt rule forbidding exactly that.
+
+    Persisting the raw string is the worst available option: the value can never
+    match any query, so the field silently contributes nothing and no error
+    surfaces downstream. Coercing to `other` is retrieval-equivalent (both score
+    zero) but keeps the record schema-valid and makes the failure visible in the
+    `other` rate, which is a diagnostic we already watch.
+    """
+    out: dict[str, Any] = {}
+    log: list[str] = []
+
+    for field in FIELDS:
+        value = md.get(field.name)
+
+        if field.cardinality == "multi":
+            items = value if isinstance(value, list) else ([value] if value else [])
+            kept: list[str] = []
+            for item in items:
+                if not isinstance(item, str) or not item:
+                    continue
+                if field.open_vocabulary or item in field.allowed:
+                    kept.append(item)
+                else:
+                    log.append(f"{field.name}: {item!r} off-vocabulary, dropped")
+            if not kept:
+                kept = [OTHER]
+                log.append(f"{field.name}: no valid values, coerced to [{OTHER!r}]")
+            out[field.name] = kept
+        else:
+            if isinstance(value, str) and value in field.allowed:
+                out[field.name] = value
+            else:
+                out[field.name] = OTHER
+                log.append(f"{field.name}: {value!r} off-vocabulary, coerced to {OTHER!r}")
+
+    return out, log
+
+
+def normalize_confidence(conf: Any) -> tuple[dict[str, str | None], list[str]]:
+    """Sanitize the confidence block. Never raises, never blocks a record.
+
+    v1 change: confidence used to be validated, which meant a malformed level
+    failed the record and burned all three API attempts -- exactly what
+    happened on story 0042, where the model returned "uncertain" as a
+    confidence level because the prompt used that word for two purposes.
+
+    The pilot also showed the values carry almost no information:
+    `reading_band`, `narrative_style`, and `energy_level` all came back 100%
+    "high", including on labels that were plainly wrong. So confidence is
+    retained for diagnostics only and must not influence retrieval, filtering,
+    retries, or taxonomy acceptance. Unrecognized levels become None.
+    """
+    out: dict[str, str | None] = {}
+    log: list[str] = []
+    raw = conf if isinstance(conf, dict) else {}
+    if not isinstance(conf, dict) and conf is not None:
+        log.append("confidence: not an object, discarded")
     for name in FIELD_NAMES:
-        level = conf.get(name)
+        level = raw.get(name)
         if level is None:
-            errors.append(f"confidence.{name}: absent")
-        elif str(level).strip().lower() not in CONFIDENCE_LEVELS:
-            errors.append(f"confidence.{name}: {level!r} invalid")
-    return errors
+            out[name] = None
+            continue
+        cleaned = str(level).strip().lower()
+        if cleaned in CONFIDENCE_LEVELS:
+            out[name] = cleaned
+        else:
+            out[name] = None
+            log.append(f"confidence.{name}: {level!r} unrecognized, set to null")
+    return out, log
 
 
 def vocabulary_prompt_block() -> str:

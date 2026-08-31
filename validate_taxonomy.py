@@ -29,7 +29,6 @@ CACHE_DIR = Path("artifacts/annotation_cache")
 # is dominant AND contributes little retrieval discrimination.
 DOMINANCE_WARN = 0.90
 ESCAPE_FAIL = 0.20
-LOW_CONFIDENCE_FAIL = 0.30
 REDUNDANCY_WARN = 0.95
 
 # Synthetic requests for the ablation test. Deliberately varied in how much they
@@ -179,22 +178,37 @@ def report_escapes(records: dict[str, dict]) -> dict[str, dict]:
 
 
 def report_confidence(records: dict[str, dict]) -> dict[str, float]:
+    """Diagnostics only.
+
+    The v0 pilot showed self-reported confidence is not merely weakly
+    calibrated but near-constant: `reading_band`, `narrative_style`, and
+    `energy_level` all returned 100% "high", including on labels that were
+    plainly wrong. It is therefore excluded from the acceptance checklist and
+    from every retrieval and filtering decision. Printed because a sudden shift
+    in the pattern would still be worth noticing.
+    """
     n = len(records)
-    print(f"\n{'=' * 74}\nCONFIDENCE  (self-reported; weakly calibrated, treat as relative)\n{'=' * 74}")
-    print(f"{'field':<22}{'high':>8}{'medium':>9}{'low':>7}   status")
+    print(f"\n{'=' * 74}\nCONFIDENCE  (diagnostic only -- NOT used in any decision)\n{'=' * 74}")
+    print(f"{'field':<22}{'high':>8}{'medium':>9}{'low':>7}{'null':>7}")
     low_rates: dict[str, float] = {}
     for name in schema.FIELD_NAMES:
         counts: Counter[str] = Counter()
+        nulls = 0
         for rec in records.values():
             level = rec.get("annotation", {}).get("confidence", {}).get(name)
             if level:
                 counts[level] += 1
+            else:
+                nulls += 1
         total = sum(counts.values()) or 1
-        low = counts["low"] / total
-        low_rates[name] = round(low, 3)
-        status = "FAIL too many low" if low > LOW_CONFIDENCE_FAIL else ""
+        low_rates[name] = round(counts["low"] / total, 3)
         print(f"{name:<22}{counts['high'] / total * 100:>7.0f}%"
-              f"{counts['medium'] / total * 100:>8.0f}%{low * 100:>6.0f}%   {status}")
+              f"{counts['medium'] / total * 100:>8.0f}%"
+              f"{counts['low'] / total * 100:>6.0f}%{nulls:>7}")
+    spread = {name for name, r in low_rates.items()}
+    if len(spread) <= 1:
+        print("\n  Note: confidence is effectively constant across fields, "
+              "consistent with the pilot finding.")
     return low_rates
 
 
@@ -337,7 +351,6 @@ def report_checklist(records: dict[str, dict], dominance: dict[str, dict],
     flagged_dominant = [f for f, d in dominance.items() if d["dominance"] > DOMINANCE_WARN]
     high_other = [f for f, e in escapes.items() if e["other"] > ESCAPE_FAIL]
     high_uncertain = [f for f, e in escapes.items() if e["uncertain"] > ESCAPE_FAIL]
-    too_low = [f for f, r in low_conf.items() if r > LOW_CONFIDENCE_FAIL]
     unstable = [f for f, s in agreement.items() if s < 0.6] if agreement else []
     dead = [f for f, s in impact.items()
             if s == 0 and dominance.get(f, {}).get("dominance", 0) > DOMINANCE_WARN]
@@ -351,8 +364,6 @@ def report_checklist(records: dict[str, dict], dominance: dict[str, dict],
          f"over {ESCAPE_FAIL:.0%}: {high_other or 'none'}"),
         ("'uncertain' rate below threshold", not high_uncertain,
          f"over {ESCAPE_FAIL:.0%}: {high_uncertain or 'none'}"),
-        ("Low-confidence rate acceptable", not too_low,
-         f"over {LOW_CONFIDENCE_FAIL:.0%}: {too_low or 'none'}"),
         ("Repeat annotations agree", not unstable,
          f"unstable: {unstable or ('none' if agreement else 'NOT RUN')}"),
         ("tone / energy_level not redundant",
