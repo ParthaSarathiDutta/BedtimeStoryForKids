@@ -40,6 +40,28 @@ python smoke_e2e.py
 
 ---
 
+## Browser UI (optional)
+
+The default way to run the system is still the terminal CLI:
+
+```bash
+python main.py
+```
+
+If you prefer a simple local browser interface for demos:
+
+```bash
+pip install -r requirements.txt   # includes streamlit
+streamlit run app.py
+```
+
+Streamlit opens a local page in your browser. You still need your own
+`OPENAI_API_KEY` in `.env` (same as the CLI). The UI is only a thin wrapper
+around the existing Loop 1 / Loop 2 agents — it does not change generation,
+judging, or retrieval behavior.
+
+---
+
 ## What the child sees
 
 ```

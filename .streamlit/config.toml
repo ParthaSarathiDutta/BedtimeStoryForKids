@@ -1,0 +1,7 @@
+[client]
+# Hide Streamlit developer chrome (Deploy, etc.) — this UI is child-facing.
+toolbarMode = "viewer"
+showErrorDetails = "none"
+
+[browser]
+gatherUsageStats = false
