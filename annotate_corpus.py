@@ -22,7 +22,6 @@ import hashlib
 import json
 import os
 import random
-import re
 import sys
 import threading
 import time
@@ -34,6 +33,7 @@ from pathlib import Path
 import schema
 import corpus_io
 from corpus_io import Story
+from jsonutil import extract_json
 
 MODEL = "gpt-3.5-turbo"
 CACHE_DIR = Path("artifacts/annotation_cache")
@@ -144,40 +144,6 @@ def prepare_text(story: Story) -> tuple[str, bool]:
     tail = int(MAX_STORY_WORDS * TAIL_FRACTION)
     sampled = " ".join(words[:head]) + "\n\n[... middle omitted ...]\n\n" + " ".join(words[-tail:])
     return sampled, True
-
-
-# --------------------------------------------------------------------------
-# JSON extraction
-# --------------------------------------------------------------------------
-
-_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.S)
-
-
-def extract_json(raw: str) -> dict | None:
-    """Pull a JSON object out of a model response.
-
-    gpt-3.5-turbo wraps JSON in prose or fences often enough that this must be
-    defensive rather than a bare json.loads.
-    """
-    if not raw:
-        return None
-    candidates: list[str] = []
-    fence = _FENCE_RE.search(raw)
-    if fence:
-        candidates.append(fence.group(1))
-    candidates.append(raw)
-    start, end = raw.find("{"), raw.rfind("}")
-    if start != -1 and end > start:
-        candidates.append(raw[start:end + 1])
-
-    for candidate in candidates:
-        try:
-            parsed = json.loads(candidate.strip())
-            if isinstance(parsed, dict):
-                return parsed
-        except json.JSONDecodeError:
-            continue
-    return None
 
 
 # --------------------------------------------------------------------------

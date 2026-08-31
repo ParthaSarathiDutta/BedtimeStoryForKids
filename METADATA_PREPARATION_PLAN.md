@@ -116,8 +116,8 @@ Two hard constraints on these values:
 
 ### 3.2 Hard vs. soft dimensions
 
-- **Hard filters** (exclude outright): story is in the licensed/approved corpus; severe safety flags (see below).
-- **Soft preferences** (score and rank, never hard-exclude): all 10 fields above.
+- **Hard filters** (exclude outright): story is in the licensed/approved corpus.
+- **Soft preferences** (score and rank, never hard-exclude): all 10 fields above, plus safety (see below).
 
 `language` needs no per-record field or filter — we clone only `/en`, so English is a property of the corpus rather than something to check per story.
 
@@ -132,16 +132,13 @@ Two hard constraints on these values:
 
 `tone = mildly tense/spooky` is a legitimate *preference* for a 9–10-year-old. Safety is a *system constraint*. Collapsing them into one field would mean a child could never ask for a slightly spooky story without tripping a safety rule, which is the wrong behaviour. Safety therefore lives in its own record block (Section 4).
 
-#### Enforcement is graded, not binary
+#### Enforcement is soft only, at every severity — revised after the pilot
 
-Retrieved stories are **inspiration for the Planner and are never narrated to the child**, so the safety bar for *retrieval* is lower than the bar for *output*. Hard-excluding every flagged story would discard legitimate structural examples: most `quest/rescue` arcs require a threat, and a large share of folktales would vanish from the corpus entirely.
+The original plan called for severe flags (`disturbing_imagery`, graphic `violence`) to hard-exclude a story from retrieval, with only the milder flags (`threat`, `intense_fear`, `death`) down-weighting. The pilot showed this was the wrong call: `gpt-3.5-turbo`'s safety classification is unreliable in **both** directions on this corpus. It flagged two shapes joking about chicken pox as `disturbing_imagery` — a false positive keyed on words like "scary" and "screamed" inside a joke — while missing an actual parental death in another story entirely (false negative). Under the original graded rule, that single false positive would have permanently deleted a usable story from retrieval.
 
-| Flag | Retrieval effect |
-|---|---|
-| `disturbing_imagery`, graphic `violence` | Hard-exclude |
-| `threat`, `intense_fear`, `death` | Down-weight only |
+Since retrieved stories are **inspiration for the Planner and are never narrated to the child**, there is no reason to accept that risk. No flag, at any severity, excludes a story from retrieval. All flags only down-weight ranking: severe flags (`disturbing_imagery`, graphic `violence`) apply a heavier penalty (0.6×) than milder ones (`threat`, `intense_fear`, `death`, 0.8×). A flagged story can still surface, just lower in the ranking, and an unreliable label costs it position rather than existence.
 
-Output safety remains the **Judge's** responsibility on the generated story, which is the only place it actually matters to the child.
+Output safety remains entirely the **Judge's** responsibility on the generated story, which is the only place safety actually matters to the child — this was true in the original design and is unchanged.
 
 ### 3.3 Annotation difficulty and confidence flags
 
