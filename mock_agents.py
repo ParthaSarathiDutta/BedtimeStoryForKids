@@ -105,6 +105,25 @@ def make_mock_story():
     return mock_story
 
 
+def make_mock_beat():
+    """Mock for storyteller.write_story_beat_by_beat: one call per beat,
+    each producing a short distinguishable sentence so tests can confirm all
+    beats concatenated rather than only the first or last.
+    """
+    def mock_beat(prompt: str) -> str:
+        beat_match = re.search(r'YOU ARE WRITING BEAT \d+ of \d+ NOW: "([^"]+)"', prompt)
+        beat_name = beat_match.group(1) if beat_match else "a beat"
+        elements_line = re.search(r"MUST appear somewhere across the whole story: (.*)", prompt)
+        elements = elements_line.group(1).strip() if elements_line else ""
+        elements = "" if elements in ("", "(nothing specific)") else elements
+        text = f"In the {beat_name} part, something calm and gentle happened."
+        if elements and "final" in prompt.lower():
+            text += f" There was {elements}, just as hoped."
+        return text
+
+    return mock_beat
+
+
 def make_mock_judge_story(fail_first_n: int = 0):
     """Fails the first N calls, then passes. Matches judge.py's
     DIMENSIONS_STORY {score, reason} schema.

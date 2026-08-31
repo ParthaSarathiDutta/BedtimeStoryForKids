@@ -45,6 +45,34 @@ def test_storyteller_mock_wiring() -> None:
     check("plan carried through", draft.plan, SAMPLE_PLAN)
 
 
+def test_storyteller_beat_by_beat_mock_wiring() -> None:
+    llm = LLMClient(mock=True)
+    prefs = UserPreferences(initial_request="x")
+    draft = storyteller.write_story_beat_by_beat(SAMPLE_PLAN, prefs, llm, mock_fn=mock_agents.make_mock_beat())
+    check("strategy recorded", draft.strategy, storyteller.STRATEGY_BEAT_BY_BEAT)
+    for beat in SAMPLE_PLAN.arc_beats:
+        check_true(f"beat {beat!r} present in concatenated text", beat in draft.text)
+
+
+def test_loop2_supports_pluggable_write_fn() -> None:
+    """The A/B comparison depends on loop2 running the identical control flow
+    for both strategies -- confirm write_fn actually gets used, not silently
+    ignored in favor of the default whole-story path.
+    """
+    llm = LLMClient(mock=True)
+    prefs = UserPreferences(initial_request="x")
+    mock_fns = {
+        "story": mock_agents.make_mock_beat(),
+        "judge_story": mock_agents.make_mock_judge_story(),
+        "feedback": mock_agents.make_mock_feedback(),
+    }
+    session = loop2.run(
+        SAMPLE_PLAN, prefs, llm, respond=lambda draft: "yes!", mock_fns=mock_fns,
+        write_fn=storyteller.write_story_beat_by_beat,
+    )
+    check("beat_by_beat strategy actually used", session.story.strategy, storyteller.STRATEGY_BEAT_BY_BEAT)
+
+
 def test_story_judge_deterministic_catches_missing_element() -> None:
     llm = LLMClient(mock=True)
     prefs = UserPreferences(initial_request="x", must_include=["a dragon"])

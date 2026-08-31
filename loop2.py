@@ -30,12 +30,19 @@ def run(
     respond: StoryResponder,
     session: SessionContext | None = None,
     mock_fns: dict[str, Any] | None = None,
+    write_fn: Callable[..., StoryDraft] = storyteller.write_story,
 ) -> SessionContext:
+    """`write_fn` defaults to the whole-story strategy. It exists as an
+    injection point so `experiment_strategies.py` can run the identical Loop 2
+    control flow (same Judge, same thresholds, same revision plumbing) against
+    `storyteller.write_story_beat_by_beat` without touching this module or
+    either strategy's prompt -- see the A/B comparison discussion.
+    """
     mock_fns = mock_fns or {}
     session = session or SessionContext(preferences=preferences, plan=plan)
 
     def agent_fn(prior_draft: StoryDraft | None, notes: str | None) -> StoryDraft:
-        draft = storyteller.write_story(
+        draft = write_fn(
             plan, preferences, llm, revision_notes=notes, mock_fn=mock_fns.get("story"),
         )
         session.log("storyteller_draft", strategy=draft.strategy, word_count=len(draft.text.split()))

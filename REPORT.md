@@ -47,7 +47,7 @@ Three agents, one shared state object, and two nested feedback loops.
 | Component | Job |
 |---|---|
 | **Planner** | Turn a child's request into a structured `StoryPlan`. Searches the corpus for inspiration, picks an arc profile, decides what to ask the child next. |
-| **Storyteller** | Turn an approved `StoryPlan` into prose, beat by beat. |
+| **Storyteller** | Turn an approved `StoryPlan` into prose. Generates the whole story in one call (§10 resolves this against a beat-by-beat alternative, measured and rejected). |
 | **Judge** | Two modes: `evaluate_plan` and `evaluate_story`. Scores against a rubric *and* against the child's accumulated preferences. |
 | **SessionContext** | Single source of truth: preferences, approved plan, feedback history, trace log. |
 
@@ -146,7 +146,7 @@ Two arc rules are non-negotiable regardless of profile, and both are determinist
 - Every profile ends calm. This is a *bedtime* story, so an unresolved cliffhanger or a high-energy finish is a functional failure, not a stylistic one.
 - Beat count scales with `reading_band` — fewer, shorter beats for ages 5–6.
 
-Generating beat-by-beat rather than all at once is again a concession to `gpt-3.5-turbo`: each call holds one beat's worth of context plus a running summary, which keeps coherence far better than one 900-word request.
+Whether to *generate* beat-by-beat (rather than write the whole story in one call) was an open question at this point in the design; §10 measures both and resolves it in favor of whole-story generation. `arc_beats` still exists and is still used — as the Storyteller's structural guidance within a single prompt, and as the Judge's `arc_coherence` reference — just not as a per-beat call boundary.
 
 ---
 
@@ -334,7 +334,7 @@ Every prompt, verdict, score, and revision is appended to a trace log with times
 
 - **Composable prompt layers.** Prompts are assembled from fragments: base persona, age-band language rules, arc-profile beat instruction, retrieved inspiration, accumulated preferences, safety rules. Layers are reused across agents rather than duplicated per call site.
 - **Category-tailored strategy** (`strategies.py`), which the README suggests directly: an adventure needs pace and stakes, a bedtime story needs a decelerating rhythm, a discovery story needs genuine curiosity. Each `story_type` contributes its own prompt fragment.
-- **Beat-level generation** with a running summary, for coherence under a small model.
+- **Whole-story generation**, one call per draft (§10): measured against beat-level generation with a running summary and found to win on quality-per-cost, not just cost alone.
 - **Judge rubric as explicit scored dimensions** — age-appropriateness, engagement, arc coherence, warmth, preference adherence — each requiring a brief justification. Requiring justification measurably reduces the rubber-stamping that `gpt-3.5-turbo` otherwise defaults to.
 - **Temperature split**: higher for creative generation, near-zero for judging and extraction. Evaluation should be reproducible even when generation is not.
 
@@ -351,7 +351,7 @@ Every prompt, verdict, score, and revision is appended to a trace log with times
 | `prompts.py` | Prompt templates and composable layers |
 | `strategies.py` | Per-category prompt fragments |
 | `planner.py` | `create_plan`, `revise_plan`, next-question selection |
-| `storyteller.py` | `write_story`, `write_beat`, `apply_edit` |
+| `storyteller.py` | `write_story` (production default), `write_story_beat_by_beat` (validated alternative, not default — see §10) |
 | `judge.py` | `evaluate_plan`, `evaluate_story` |
 | `harness.py` | `AgentLoop`, `SessionContext`, hybrid pass/fail |
 | `feedback_normalizer.py` | Free-text child feedback to structured intent |
@@ -399,6 +399,12 @@ Enforcement is soft at every severity — revised from an earlier graded design 
 Notably, the record stores **`flags` only**; `bedtime_safe` is derived in code from flags plus the target reading band. A stored boolean would silently commit to one age band, and re-annotating hundreds of stories to change a policy is far more expensive than editing a function.
 
 **How are long stories annotated?** Head-plus-tail sampling (roughly first 60%, last 20%, elision marked), applied only to the files that actually exceed the window, with `text_truncated: true` recorded on affected records. Head-only truncation was rejected because it removes exactly the evidence that `plot_shape` and `energy_level` depend on — including whether the story ends calm, which is the single most important property for a bedtime story.
+
+**Should the Storyteller write beat-by-beat, or the whole story in one call?** The original design (§3, §7 above) assumed beat-by-beat generation, one call per arc beat, as a concession to keeping a small model coherent over a long story. After the whole-story baseline was implemented and validated end-to-end, this was tested rather than assumed: a paired A/B experiment ran both strategies against the identical approved `StoryPlan`, through the identical Story Judge and thresholds, across 9 fixed plans (all 7 `plot_shape`s, all 3 reading bands) × 2 repeats × 2 strategies = 36 real-API runs. Full design, data, and generated stories: [`artifacts/ab_experiment/report.md`](./artifacts/ab_experiment/report.md).
+
+Result: **whole-story is the production default.** No practically meaningful quality difference was observed (all six Judge dimensions differed by ≤0.05); beat-by-beat has a slight pass-rate edge (88.9% vs 83.3%), but that does not compensate for **~3.1× the LLM calls**, **~1.6× the latency**, more word-count overruns, and roughly **twice the repetition per word**. Reading the transcripts showed why: each beat call cannot see how much of the arc remains, so mid-story beats independently re-establish tension already established by the previous beat, padding rather than progressing. The production choice is a multi-objective tradeoff (quality ≈ same; cost, length, and repetition favor whole-story), not a claim that whole-story dominates every metric. `write_story_beat_by_beat` remains in `storyteller.py`, tested, and reachable via `loop2.run(..., write_fn=...)`, but is not the default.
+
+One finding changes the roadmap rather than just settling the question: the recurring, strategy-*independent* failure was `calm_ending` on plans whose plot shape escalates energy right up to the end (silly/cumulative events failed 4/4 runs across both strategies, on the same dimension every time). Beat-by-beat's finer control over "the last beat" did not fix this — which means the fix is not narrative granularity but better-targeted revision. The evidenced next step, not yet built: on a `calm_ending` failure specifically, regenerate only the final beat/paragraph against the Judge's feedback rather than the whole story, keeping whole-story's low cost for the common case while adding a cheap, surgical fix for the one weak spot the data actually points at.
 
 ### Remaining uncertainties
 

@@ -75,3 +75,99 @@ def write_story(
         mock_fn=mock_fn,
     )
     return StoryDraft(text=text.strip(), plan=plan, strategy=STRATEGY_WHOLE_STORY)
+
+
+# --------------------------------------------------------------------------
+# Beat-by-beat strategy -- kept as a fully separate code path from
+# write_story above, which must stay frozen while this is built and measured
+# (see the A/B comparison in experiment_strategies.py): touching
+# write_story's prompt while building this would confound the comparison.
+# --------------------------------------------------------------------------
+
+STRATEGY_BEAT_BY_BEAT = "beat_by_beat"
+
+BEAT_PROMPT_TEMPLATE = """You are the Storyteller, continuing a bedtime story one beat at a time.
+
+APPROVED PLAN (a contract):
+- Concept: {concept}
+- Protagonist: {protagonist}
+- Setting: {setting}
+Elements the child explicitly asked for -- these MUST appear somewhere across the whole story: {must_include}
+
+FULL BEAT SEQUENCE FOR THIS STORY: {all_beats}
+YOU ARE WRITING BEAT {beat_index} of {beat_count} NOW: "{current_beat}"
+
+STORY SO FAR:
+{story_so_far}
+
+{revision_block}Write ONLY the prose for THIS beat -- a short paragraph or two, continuing
+directly on from the story so far, in a warm, gentle voice for a child aged
+5-10. Do not restate previous events, do not repeat phrasing already used
+above, and do not include beat labels, headings, or notes -- just the
+continuing story prose.
+{last_beat_instruction}
+"""
+
+_LAST_BEAT_INSTRUCTION = (
+    "This is the FINAL beat -- it MUST end the WHOLE story calm and "
+    "reassuring: no cliffhangers, no unresolved excitement, nothing that "
+    "would wind a child up right before sleep."
+)
+
+
+def _build_beat_prompt(
+    plan: StoryPlan,
+    preferences: UserPreferences,
+    beat_name: str,
+    beat_index: int,
+    beat_count: int,
+    story_so_far: str,
+    revision_notes: str | None,
+) -> str:
+    revision_block = (
+        f"REVISION GUIDANCE (apply wherever it is relevant to this beat): {revision_notes}\n\n"
+        if revision_notes else ""
+    )
+    return BEAT_PROMPT_TEMPLATE.format(
+        concept=plan.concept,
+        protagonist=plan.protagonist,
+        setting=plan.setting,
+        must_include=", ".join(preferences.must_include) or "(nothing specific)",
+        all_beats=" -> ".join(plan.arc_beats),
+        beat_index=beat_index,
+        beat_count=beat_count,
+        current_beat=beat_name,
+        story_so_far=story_so_far.strip() or "(the story has not started yet -- this is the opening beat)",
+        revision_block=revision_block,
+        last_beat_instruction=_LAST_BEAT_INSTRUCTION if beat_index == beat_count else "",
+    )
+
+
+def write_story_beat_by_beat(
+    plan: StoryPlan,
+    preferences: UserPreferences,
+    llm: LLMClient,
+    revision_notes: str | None = None,
+    mock_fn: Callable[[str], str] | None = None,
+) -> StoryDraft:
+    """One LLM call per beat, each given the running story-so-far as context
+    for coherence (REPORT.md sec 3, sec 6.4: "beat-level generation with a
+    running summary"). A revision regenerates every beat from scratch with
+    the same guidance visible to each call, rather than patching a single
+    beat -- simpler, and consistent with how the whole-story strategy treats
+    a revision (a fresh full draft), which is what a fair comparison needs.
+    """
+    beats = plan.arc_beats or ["Hook", "Resolution"]
+    parts: list[str] = []
+    for i, beat_name in enumerate(beats, start=1):
+        prompt = _build_beat_prompt(
+            plan, preferences, beat_name, i, len(beats), "\n\n".join(parts), revision_notes,
+        )
+        text = llm.complete_text(
+            prompt,
+            temperature=config.TEMPERATURE_STORY,
+            max_tokens=350,
+            mock_fn=mock_fn,
+        )
+        parts.append(text.strip())
+    return StoryDraft(text="\n\n".join(parts).strip(), plan=plan, strategy=STRATEGY_BEAT_BY_BEAT)
