@@ -42,7 +42,7 @@ The Streamlit UI is a demo layer over the same Planner / Judge / Storyteller pip
 
 ## Architecture
 
-Three agents, one shared session-state object (`SessionContext`), two nested feedback loops. Full design rationale: [`REPORT.md`](REPORT.md).
+Three agents, one shared session-state object (`SessionContext`), and two bounded feedback loops. Full design rationale: [`REPORT.md`](REPORT.md).
 
 ```mermaid
 flowchart TD
@@ -63,6 +63,7 @@ flowchart TD
 
     subgraph L2["Loop 2 — Story generation"]
         Plan --> Teller["Storyteller"]
+        State --> Teller
         State --> JStory["Judge — story mode"]
         Teller --> JStory
         JStory -->|pass| Out(["Child receives story"])
