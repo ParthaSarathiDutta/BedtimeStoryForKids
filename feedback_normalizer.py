@@ -8,6 +8,7 @@ one short prompt, temperature 0, tiny output.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
 
 from llm import LLMClient
@@ -17,25 +18,45 @@ _VALID_INTENTS = frozenset({
     "approve", "new_idea", "more_fun", "too_long", "too_scary", "add_element", "other",
 })
 
+# Code-side safety net: gpt-3.5-turbo has labeled clear revision requests
+# ("the ending should be calmer", "can you make it sillier?") as approve.
+# If any of these cues appear, we refuse to treat the turn as approval even
+# when the model says intent=approve.
+_REVISION_CUES = re.compile(
+    r"(?i)\b("
+    r"can (there|you|we)|could you|make (it|the)|should be|"
+    r"too (long|scary|exciting|much|wild)|"
+    r"calmer|sillier|funnier|scarier|shorter|longer|"
+    r"add |instead|change |don'?t |no more|not so|please (fix|change)"
+    r")\b"
+)
+
 PROMPT_TEMPLATE = """A child aged 5-10 was just asked about a bedtime story idea and said:
 
 "{raw_text}"
 
 Classify their reaction. Guidance:
-- "yes", "yeah!", "sounds good", "I like it" -> approved: true, intent: "approve"
+- Pure acceptance with no change request ("yes", "yeah!", "sounds good", "I like it",
+  "perfect") -> approved: true, intent: "approve"
+- ANY request to change the story or ending is NOT approval, even if polite or
+  soft. Examples that must be approved: false:
+  "the ending should be calmer", "can you make it sillier?", "a bit too exciting",
+  "make it shorter", "can there be a dog too?"
 - A specific new request naming a concrete thing ("I want a dragon!", "can there be a dog too?")
   -> approved: false, intent: "new_idea" or "add_element", extracted_element set to that concrete thing
 - Swapping one concrete thing for another ("no dragon, make it a dinosaur instead")
   -> intent: "add_element", extracted_element: "a dinosaur", removed_element: "a dragon"
 - "make it funnier/sillier" -> intent: "more_fun". This is a MOOD, not a concrete
   thing -- extracted_element MUST be null here, never a word like "funny".
+- "make it calmer" / "the ending should be calmer" / "too exciting" -> intent: "other",
+  approved: false, extracted_element null
 - "that's too long" / "too much" -> intent: "too_long", extracted_element null
 - "that's scary" / "I don't like scary things" -> intent: "too_scary", extracted_element null
-- Anything else -> intent: "other", approved false unless clearly positive
+- Anything else -> intent: "other", approved false unless clearly positive with no change
 
 extracted_element and removed_element are ONLY for concrete nameable things
 (a character, an animal, an object, a specific place) -- never a mood, tone,
-or abstract quality like "funny", "exciting", or "friendship".
+or abstract quality like "funny", "exciting", "calmer", or "friendship".
 
 Reply with ONLY a JSON object:
 {{
@@ -91,6 +112,13 @@ def interpret(
     # flags: don't let an LLM's self-reported boolean gate a decision when
     # code can derive a safer one from the rest of its own output.
     approved = (intent == "approve") and element is None
+
+    # Second safety net: revision cues in the raw text override a mistaken
+    # approve intent (seen live on "the ending should be calmer").
+    if approved and _REVISION_CUES.search(raw_text or ""):
+        approved = False
+        if intent == "approve":
+            intent = "other"
 
     return ChildResponse(
         raw_text=raw_text,

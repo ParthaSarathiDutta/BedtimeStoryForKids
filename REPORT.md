@@ -340,31 +340,28 @@ Every prompt, verdict, score, and revision is appended to a trace log with times
 
 ---
 
-## 8. Planned file layout
+## 8. File layout (as shipped)
 
 | File | Purpose |
 |---|---|
-| `main.py` | CLI entry point; wires the two loops |
-| `llm.py` | `call_model` wrapper, JSON extraction, retry logic |
-| `models.py` | `StoryPlan`, `UserPreferences`, `Verdict`, `StoryResult`, `ChildResponse`, `TraceEvent` |
+| `main.py` | Child-facing CLI entry point |
+| `session_runner.py` | Loop 1 → Loop 2 orchestration |
+| `llm.py` | API wrapper, JSON extraction, retry logic |
+| `models.py` | Shared dataclasses (`StoryPlan`, `UserPreferences`, …) |
 | `config.py` | Thresholds, temperatures, retry caps, loop limits |
-| `prompts.py` | Prompt templates and composable layers |
-| `strategies.py` | Per-category prompt fragments |
-| `planner.py` | `create_plan`, `revise_plan`, next-question selection |
-| `storyteller.py` | `write_story` (production default), `write_story_beat_by_beat` (validated alternative, not default — see §10) |
-| `judge.py` | `evaluate_plan`, `evaluate_story` |
-| `harness.py` | `AgentLoop`, `SessionContext`, hybrid pass/fail |
-| `feedback_normalizer.py` | Free-text child feedback to structured intent |
-| `child_ui.py` | Child-facing CLI presentation and input |
-| `arc_profiles.py` | `ARC_PROFILES` beat sequences |
-| `story_search.py` | `search_stories` over the local index |
-| `schema.py` | Taxonomy definitions (see metadata plan) |
-| `annotate_corpus.py` | Offline LLM annotation (see metadata plan) |
-| `validate_taxonomy.py` | Distribution/validation checks (see metadata plan) |
-| `index_corpus.py` | Builds `corpus_index.json` (see metadata plan) |
-| `ARCHITECTURE.md` | Block diagram and component summary |
-| `requirements.txt` | Pinned dependencies |
-| `.env.example` | Key placeholder — the real `.env` is gitignored |
+| `loop1.py` / `loop2.py` | Plan brainstorm / story write drivers |
+| `planner.py` | `create_plan` |
+| `storyteller.py` | `write_story` (default), `write_story_beat_by_beat`, `revise_ending` |
+| `judge.py` | `evaluate_plan`, `evaluate_story`, calm-ending gate |
+| `harness.py` | Shared `AgentLoop` |
+| `feedback_normalizer.py` / `preference_extractor.py` | Child text → structured intent / prefs |
+| `arc_profiles.py` | Beat sequences by `plot_shape` |
+| `story_search.py` / `inspiration.py` | Corpus retrieval → InspirationCards |
+| `schema.py` | Taxonomy definitions |
+| `corpus_index.json` | Annotated index (388 stories) |
+| `annotate_corpus.py` / `index_corpus.py` / `validate_taxonomy.py` | Offline metadata pipeline |
+| `REPORT.md` | Design write-up (this file) |
+| `requirements.txt` / `.env.example` | Dependencies and key placeholder |
 
 ---
 
@@ -408,8 +405,12 @@ One finding changes the roadmap rather than just settling the question: the recu
 
 ### Remaining uncertainties
 
-These are genuinely open, but they are questions the corpus should answer rather than questions more design discussion can:
+Taxonomy pilot questions (field survival, tone/energy redundancy, `plot_shape`
+noise) were answered during metadata preparation — see
+[`METADATA_PREPARATION_PLAN.md`](./METADATA_PREPARATION_PLAN.md) and the v1
+schema revision. Open product polish, not architecture:
 
-- Whether the ten fields survive the pilot unchanged. The plan permits exactly one taxonomy revision, driven by measured distributions rather than further argument.
-- Whether `tone` and `energy_level` turn out to be redundant. Pre-registered as a specific hypothesis to test.
-- How noisy `plot_shape` is under `gpt-3.5-turbo`. The self-consistency check will show this; the confidence flags alone will not, since self-reported confidence from this model is weakly calibrated.
+- Judge LLM re-scoring of `preference_adherence` after body-preserving edits
+  can still drift below the strict bar even when deterministic checks pass.
+- High-energy plot shapes remain the hardest calm-ending cases; ending repair
+  helps when that is the *primary* failure, but not every fallback.

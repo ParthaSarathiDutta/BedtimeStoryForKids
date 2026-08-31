@@ -221,6 +221,16 @@ def test_feedback_normalizer_distrusts_contradictory_approval() -> None:
     response = feedback_normalizer.interpret("yes!", llm, mock_fn=mock_clean_approve)
     check("genuine approval still passes through", response.approved, True)
 
+    def mock_false_calm_approve(prompt: str) -> dict:
+        # Live smoke failure: model labeled a clear ending revision as approve.
+        return {"approved": True, "intent": "approve", "extracted_element": None}
+
+    response = feedback_normalizer.interpret(
+        "the ending should be calmer", llm, mock_fn=mock_false_calm_approve,
+    )
+    check("revision-cue text overrides mistaken approve", response.approved, False)
+    check("intent demoted from approve", response.intent, "other")
+
 
 def test_preferences_replace_element_removes_and_adds() -> None:
     """"No dragon, make it a dinosaur" must drop the dragon, not just add the dinosaur."""

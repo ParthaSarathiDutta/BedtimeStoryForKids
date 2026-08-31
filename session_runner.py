@@ -24,8 +24,12 @@ def run_full_session(
     respond_plan: Callable[[StoryPlan], str],
     respond_story: Callable[[StoryDraft], str],
     mock_fns: dict[str, Any] | None = None,
+    reading_band: str | None = None,
 ) -> SessionContext:
-    session = loop1.run(initial_request, index, llm, respond=respond_plan, mock_fns=mock_fns)
+    session = loop1.run(
+        initial_request, index, llm, respond=respond_plan,
+        mock_fns=mock_fns, reading_band=reading_band,
+    )
     loop2.run(
         session.plan, session.preferences, llm,
         respond=respond_story, session=session, mock_fns=mock_fns,

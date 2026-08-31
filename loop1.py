@@ -43,12 +43,15 @@ def run(
     llm: LLMClient,
     respond: ChildResponder,
     mock_fns: dict[str, Any] | None = None,
+    reading_band: str | None = None,
 ) -> SessionContext:
     mock_fns = mock_fns or {}
 
     known, must_include, dropped = preference_extractor.extract_preferences(
         initial_request, llm, mock_fn=mock_fns.get("extract"),
     )
+    if reading_band:
+        known["reading_band"] = reading_band  # explicit age ask wins over extractor guess
     preferences = UserPreferences(initial_request=initial_request, known=known, must_include=must_include)
     session = SessionContext(preferences=preferences)
     session.log("preferences_extracted", known=known, must_include=must_include, dropped=dropped)
