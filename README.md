@@ -4,7 +4,7 @@ An evaluated agentic AI system for personalized generation, built around explici
 
 Planner–Judge–Storyteller orchestration and targeted failure repair.
 
-**🚀 Live Demo — deploying soon** · **[🏗 Architecture](#architecture)** · **[🧪 Evaluation](#evaluation)** · **[⚙️ Run locally](#try-it-locally)**
+**[🚀 Live Demo](https://kids-bedtimestory-ai.streamlit.app/)** · **[🏗 Architecture](#architecture)** · **[🧪 Evaluation](#evaluation)** · **[⚙️ Run locally](#try-it-locally)**
 
 | 388-story corpus | 49 test groups passing | 36-run generation A/B |
 |---|---|---|
@@ -22,7 +22,7 @@ Planner–Judge–Storyteller orchestration and targeted failure repair.
 
 <p align="center"><em>Story idea → concept review → final story</em></p>
 
-The Streamlit UI is a demo layer over the same Planner / Judge / Storyteller pipeline as the CLI. After deployment, the Live Demo link above will point to the hosted URL.
+The Streamlit UI is a demo layer over the same Planner / Judge / Storyteller pipeline as the CLI. Try the [Live Demo](https://kids-bedtimestory-ai.streamlit.app/) above.
 
 ---
 
